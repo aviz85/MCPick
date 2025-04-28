@@ -25,8 +25,8 @@ function maskSensitiveValue(value) {
   let result = value;
   
   try {
-    // Skip processing for npm package names and file paths
-    if (isNpmPackage(result) || isFilePath(result)) {
+    // Skip processing for npm package names, file paths, or server names
+    if (isNpmPackage(result) || isFilePath(result) || isServerName(result)) {
       return result;
     }
     
@@ -138,6 +138,43 @@ function isFilePath(str) {
   return false;
 }
 
+// Function to check if a string is a server name
+function isServerName(str) {
+  // Known server name patterns
+  const serverNamePatterns = [
+    '-server',
+    'server-',
+    'mcp-',
+    'google-',
+    'contacts-',
+    'chat-',
+    'calendar-',
+    'email-',
+    'storage-',
+    'drive-',
+    'docs-',
+    'gmail-',
+    'cloud-'
+  ];
+  
+  for (const pattern of serverNamePatterns) {
+    if (str.includes(pattern)) {
+      return true;
+    }
+  }
+  
+  // Get the current list of server names from the UI
+  const serverListItems = document.querySelectorAll('[data-server]');
+  const serverNames = [...serverListItems].map(item => item.getAttribute('data-server'));
+  
+  // Check if this value is one of our server names
+  if (serverNames.includes(str)) {
+    return true;
+  }
+  
+  return false;
+}
+
 // Create a simple UI for config selection and server management
 function renderSimpleUI() {
   const rootElement = document.getElementById('root');
@@ -163,9 +200,14 @@ function renderSimpleUI() {
       <div id="servers-container" style="background: white; border-radius: 5px; padding: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); display: none;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
           <h2 style="margin-top: 0; color: #333;">MCP Servers</h2>
-          <button id="add-server-btn" style="padding: 8px 16px; background: #1976d2; color: white; border: none; border-radius: 4px; cursor: pointer;">
-            Add Server
-          </button>
+          <div style="display: flex; gap: 10px;">
+            <button id="parse-config-btn" style="padding: 8px 16px; background: #4caf50; color: white; border: none; border-radius: 4px; cursor: pointer;">
+              Parse Config JSON
+            </button>
+            <button id="add-server-btn" style="padding: 8px 16px; background: #1976d2; color: white; border: none; border-radius: 4px; cursor: pointer;">
+              Add Server
+            </button>
+          </div>
         </div>
         
         <div id="server-list">
@@ -190,6 +232,10 @@ function renderSimpleUI() {
 
   document.getElementById('add-server-btn').addEventListener('click', () => {
     showAddServerDialog();
+  });
+
+  document.getElementById('parse-config-btn').addEventListener('click', () => {
+    showParseConfigDialog();
   });
 
   // Check if config exists on startup
@@ -554,6 +600,140 @@ function deleteServer(serverName) {
     }
   }).catch(err => {
     showError(err);
+  });
+}
+
+// Show parse config dialog
+function showParseConfigDialog() {
+  // Create a modal overlay
+  const overlay = document.createElement('div');
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+  `;
+  
+  // Create the form
+  const formHtml = `
+    <div style="background: white; border-radius: 8px; width: 600px; max-width: 90%; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+      <h2 style="margin-top: 0; color: #333;">Parse Config JSON</h2>
+      
+      <div style="margin-bottom: 20px;">
+        <label style="display: block; margin-bottom: 5px; font-weight: bold;">Paste your server configuration JSON:</label>
+        <textarea id="config-json" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; min-height: 200px; font-family: monospace;" 
+          placeholder='{"mcpServers": {"google-contacts-server": {"command": "uv", "args": ["--directory", "/path/to/mcp-google-contacts-server", "run", "main.py"], "disabled": false, "autoApprove": []}}}'></textarea>
+        <small style="color: #666; display: block; margin-top: 5px;">JSON must contain an "mcpServers" object with server configurations</small>
+      </div>
+      
+      <div id="validation-message" style="margin-bottom: 20px; color: #d32f2f; display: none;"></div>
+      
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+        <button id="cancel-parse-btn" style="padding: 8px 16px; background: #f5f5f5; color: #333; border: none; border-radius: 4px; cursor: pointer;">Cancel</button>
+        <button id="validate-btn" style="padding: 8px 16px; background: #ff9800; color: white; border: none; border-radius: 4px; cursor: pointer;">Validate</button>
+        <button id="parse-btn" style="padding: 8px 16px; background: #4caf50; color: white; border: none; border-radius: 4px; cursor: pointer;" disabled>Parse & Add Servers</button>
+      </div>
+    </div>
+  `;
+  
+  overlay.innerHTML = formHtml;
+  document.body.appendChild(overlay);
+  
+  const validationMessage = document.getElementById('validation-message');
+  const parseBtn = document.getElementById('parse-btn');
+  
+  // Set up event listeners
+  document.getElementById('cancel-parse-btn').addEventListener('click', () => {
+    document.body.removeChild(overlay);
+  });
+  
+  document.getElementById('validate-btn').addEventListener('click', () => {
+    const jsonText = document.getElementById('config-json').value.trim();
+    validationMessage.style.display = 'block';
+    
+    if (!jsonText) {
+      validationMessage.textContent = 'Error: JSON is empty';
+      validationMessage.style.color = '#d32f2f';
+      parseBtn.disabled = true;
+      return;
+    }
+    
+    try {
+      const parsedConfig = JSON.parse(jsonText);
+      
+      if (!parsedConfig.mcpServers || typeof parsedConfig.mcpServers !== 'object' || Array.isArray(parsedConfig.mcpServers)) {
+        validationMessage.textContent = 'Error: JSON must contain an "mcpServers" object';
+        validationMessage.style.color = '#d32f2f';
+        parseBtn.disabled = true;
+        return;
+      }
+      
+      const serverCount = Object.keys(parsedConfig.mcpServers).length;
+      if (serverCount === 0) {
+        validationMessage.textContent = 'Error: No servers found in the mcpServers object';
+        validationMessage.style.color = '#d32f2f';
+        parseBtn.disabled = true;
+        return;
+      }
+      
+      validationMessage.textContent = `Valid JSON format. Found ${serverCount} server(s).`;
+      validationMessage.style.color = '#4caf50';
+      parseBtn.disabled = false;
+      
+    } catch (error) {
+      validationMessage.textContent = `Error: Invalid JSON - ${error.message}`;
+      validationMessage.style.color = '#d32f2f';
+      parseBtn.disabled = true;
+    }
+  });
+  
+  document.getElementById('parse-btn').addEventListener('click', () => {
+    const jsonText = document.getElementById('config-json').value.trim();
+    
+    try {
+      const parsedConfig = JSON.parse(jsonText);
+      const servers = parsedConfig.mcpServers;
+      
+      // Process each server
+      let serverCount = 0;
+      const promises = [];
+      
+      for (const [serverName, serverConfig] of Object.entries(servers)) {
+        // Convert the Claude format to our app format
+        const convertedConfig = {
+          command: serverConfig.command,
+          args: serverConfig.args || [],
+          enabled: false, // Always disabled by default
+          ...(serverConfig.env ? { env: serverConfig.env } : {})
+        };
+        
+        // Add the server
+        promises.push(window.api.saveServer(serverName, convertedConfig));
+        serverCount++;
+      }
+      
+      // Wait for all servers to be added
+      Promise.all(promises)
+        .then(() => {
+          document.body.removeChild(overlay);
+          alert(`Successfully added ${serverCount} server(s). All servers are disabled by default.`);
+          loadServers(); // Refresh the server list
+        })
+        .catch(error => {
+          alert(`Error adding servers: ${error.message}`);
+        });
+      
+    } catch (error) {
+      validationMessage.textContent = `Error: Failed to parse JSON - ${error.message}`;
+      validationMessage.style.color = '#d32f2f';
+      parseBtn.disabled = true;
+    }
   });
 }
 
