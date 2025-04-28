@@ -19,6 +19,86 @@ function showError(error) {
   }
 }
 
+// Mask sensitive data like API keys, IDs, or other long sequences
+function maskSensitiveValue(value) {
+  if (!value) return value;
+  let result = value;
+  
+  try {
+    // Find and mask long sequences of alphanumeric characters and hyphens (16+ chars instead of 10+)
+    const longIdRegex = /([a-zA-Z0-9\-_]{16,})/g;
+    let match;
+    let lastIndex = 0;
+    let maskedResult = '';
+    
+    // Reset regex state
+    longIdRegex.lastIndex = 0;
+    
+    // Manually iterate through matches to avoid potential issues
+    while ((match = longIdRegex.exec(result)) !== null) {
+      const id = match[1];
+      const startIndex = match.index;
+      
+      // For very long strings, keep fewer visible characters
+      const charsToShow = Math.min(4, Math.floor(id.length / 6));
+      const maskedId = `${id.substring(0, charsToShow)}${'*'.repeat(Math.min(8, id.length - (charsToShow * 2)))}${id.substring(id.length - charsToShow)}`;
+      
+      // Add text before this match and the masked ID
+      maskedResult += result.substring(lastIndex, startIndex) + maskedId;
+      
+      // Update lastIndex for next iteration
+      lastIndex = startIndex + id.length;
+    }
+    
+    // Add any remaining text after the last match
+    if (lastIndex < result.length) {
+      maskedResult += result.substring(lastIndex);
+    }
+    
+    // If we found and masked something, update the result
+    if (lastIndex > 0) {
+      result = maskedResult;
+    }
+    
+    // Special case for service names - don't mask commands and common packages
+    const commonNames = ['make', 'node', 'npm', 'npx', 'yarn', 'bash', 'python', 'docker'];
+    commonNames.forEach(name => {
+      // For each common name, make sure we don't mask it
+      const regex = new RegExp(`(${name})(\\*+)`, 'gi');
+      result = result.replace(regex, `$1`);
+    });
+    
+    // Handle URL patterns - less aggressive approach
+    const urlRegex = /(https?:\/\/[^\/\s]+)([^\s]*)/gi;
+    result = result.replace(urlRegex, (match, domain, path) => {
+      // Only mask very long IDs in paths
+      let maskedPath = path;
+      
+      // Look specifically for paths with "/u/", "/api/v1/", etc. and only mask very long IDs
+      const apiPathRegex = /(\/[^\/]+\/[^\/]*\/)([\da-f-]{20,})([^\/]*)/g;
+      maskedPath = maskedPath.replace(apiPathRegex, (match, prefix, id, suffix) => {
+        const maskedId = `${id.substring(0, 4)}${'*'.repeat(8)}${id.substring(id.length - 4)}`;
+        return `${prefix}${maskedId}${suffix}`;
+      });
+      
+      return domain + maskedPath;
+    });
+    
+    // Look for common API key prefixes - be more selective
+    const commonPrefixes = ['sk-', 'pk-', 'api-', 'key-', 'token-', 'secret-'];
+    for (const prefix of commonPrefixes) {
+      if (result.startsWith(prefix) && result.length > prefix.length + 10) { // Only mask if it's a longer key
+        return `${prefix}${'*'.repeat(Math.min(8, result.length - prefix.length))}`;
+      }
+    }
+  } catch (error) {
+    // If any errors in masking, return original
+    console.error('Error in masking function:', error);
+  }
+  
+  return result;
+}
+
 // Create a simple UI for config selection and server management
 function renderSimpleUI() {
   const rootElement = document.getElementById('root');
@@ -126,13 +206,26 @@ function renderServerList(servers) {
   
   let html = '';
   Object.entries(servers).forEach(([serverName, server]) => {
+    const maskedCommand = maskSensitiveValue(server.command);
+    const maskedArgs = server.args.map(arg => maskSensitiveValue(arg)).join(' ');
+    const isDataMasked = maskedCommand !== server.command || maskedArgs !== server.args.join(' ');
+    
     html += `
       <div style="border-bottom: 1px solid #eee; padding: 10px 0; display: flex; justify-content: space-between; align-items: center;">
-        <div>
+        <div style="flex-grow: 1; margin-right: 10px;">
           <div style="font-weight: bold;">${serverName}</div>
-          <div style="color: #666; font-size: 0.9em;">${server.command} ${server.args.join(' ')}</div>
+          <div style="color: #666; font-size: 0.9em;" class="command-container" data-server="${serverName}">
+            <span class="masked-text">${maskedCommand} ${maskedArgs}</span>
+            <span class="original-text" style="display: none;">${server.command} ${server.args.join(' ')}</span>
+          </div>
         </div>
         <div style="display: flex; gap: 10px; align-items: center;">
+          ${isDataMasked ? `
+            <button data-action="toggle-mask" data-server="${serverName}" class="reveal-btn" style="background: none; border: none; cursor: pointer; color: #1976d2; font-size: 0.8em;">
+              <span class="show-text">Show</span>
+              <span class="hide-text" style="display: none;">Hide</span>
+            </button>
+          ` : ''}
           <label class="switch" style="position: relative; display: inline-block; width: 40px; height: 20px;">
             <input type="checkbox" data-server="${serverName}" ${server.enabled ? 'checked' : ''} style="opacity: 0; width: 0; height: 0;">
             <span style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 20px; ${server.enabled ? 'background-color: #1976d2;' : ''}"></span>
@@ -166,6 +259,24 @@ function renderServerList(servers) {
     button.addEventListener('click', (e) => {
       const serverName = e.target.getAttribute('data-server');
       deleteServer(serverName);
+    });
+  });
+  
+  serverList.querySelectorAll('button[data-action="toggle-mask"]').forEach(button => {
+    button.addEventListener('click', (e) => {
+      const serverName = e.target.getAttribute('data-server');
+      const container = document.querySelector(`.command-container[data-server="${serverName}"]`);
+      const maskedEl = container.querySelector('.masked-text');
+      const originalEl = container.querySelector('.original-text');
+      const showText = button.querySelector('.show-text');
+      const hideText = button.querySelector('.hide-text');
+      
+      // Toggle visibility
+      const isShowing = maskedEl.style.display === 'none';
+      maskedEl.style.display = isShowing ? 'inline' : 'none';
+      originalEl.style.display = isShowing ? 'none' : 'inline';
+      showText.style.display = isShowing ? 'inline' : 'none';
+      hideText.style.display = isShowing ? 'none' : 'inline';
     });
   });
 }
@@ -217,12 +328,20 @@ function showAddServerDialog(serverToEdit = null) {
       
       <div style="margin-bottom: 20px;">
         <label style="display: block; margin-bottom: 5px; font-weight: bold;">Command:</label>
-        <input id="server-command" type="text" value="${serverData.command}" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;" placeholder="e.g., npx">
+        <input id="server-command" type="text" 
+               value="${isEdit ? maskSensitiveValue(serverData.command) : serverData.command}" 
+               data-original-value="${serverData.command}"
+               style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;" 
+               placeholder="e.g., npx">
       </div>
       
       <div style="margin-bottom: 20px;">
         <label style="display: block; margin-bottom: 5px; font-weight: bold;">Arguments (space separated):</label>
-        <input id="server-args" type="text" value="${serverData.args.join(' ')}" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;" placeholder="e.g., -y @modelcontextprotocol/server-memory">
+        <input id="server-args" type="text" 
+               value="${isEdit ? serverData.args.map(arg => maskSensitiveValue(arg)).join(' ') : serverData.args.join(' ')}" 
+               data-original-value="${serverData.args.join(' ')}"
+               style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;" 
+               placeholder="e.g., -y @modelcontextprotocol/server-memory">
       </div>
       
       <div style="margin-bottom: 20px;">
@@ -235,12 +354,6 @@ function showAddServerDialog(serverToEdit = null) {
           <input id="server-enabled" type="checkbox" ${serverData.enabled ? 'checked' : ''} style="margin-right: 8px;">
           <span>Enable Server</span>
         </label>
-      </div>
-      
-      <div style="margin-bottom: 20px;">
-        <label style="display: block; margin-bottom: 5px; font-weight: bold;">Paste JSON Configuration:</label>
-        <textarea id="json-input" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; min-height: 100px;" placeholder='Paste MCP server configuration JSON here...'></textarea>
-        <button id="parse-json-btn" style="margin-top: 8px; padding: 5px 10px; background: #5c6bc0; color: white; border: none; border-radius: 4px; cursor: pointer;">Parse JSON</button>
       </div>
       
       <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
@@ -258,76 +371,46 @@ function showAddServerDialog(serverToEdit = null) {
     document.body.removeChild(overlay);
   });
   
-  document.getElementById('parse-json-btn').addEventListener('click', () => {
-    try {
-      const jsonText = document.getElementById('json-input').value.trim();
-      if (!jsonText) {
-        alert('Please paste JSON data first');
-        return;
-      }
-      
-      // Try to parse the JSON
-      const jsonData = JSON.parse(jsonText);
-      
-      // Attempt to find MCP server configuration in the JSON
-      let serverConfig = null;
-      let serverNameFromJson = '';
-      
-      // Case 1: Direct server config with command, args
-      if (jsonData.command && Array.isArray(jsonData.args)) {
-        serverConfig = jsonData;
-      }
-      // Case 2: Inside mcpServers object
-      else if (jsonData.mcpServers) {
-        const servers = Object.entries(jsonData.mcpServers);
-        if (servers.length > 0) {
-          [serverNameFromJson, serverConfig] = servers[0];
-        }
-      }
-      // Case 3: Single key with server config
-      else {
-        const keys = Object.keys(jsonData);
-        if (keys.length === 1 && typeof jsonData[keys[0]] === 'object') {
-          serverNameFromJson = keys[0];
-          serverConfig = jsonData[keys[0]];
-        }
-      }
-      
-      if (serverConfig) {
-        // Fill the form with the parsed data
-        if (serverNameFromJson && !isEdit) {
-          document.getElementById('server-name').value = serverNameFromJson;
-        }
-        
-        if (serverConfig.command) {
-          document.getElementById('server-command').value = serverConfig.command;
-        }
-        
-        if (Array.isArray(serverConfig.args)) {
-          document.getElementById('server-args').value = serverConfig.args.join(' ');
-        }
-        
-        if (serverConfig.env) {
-          document.getElementById('server-env').value = JSON.stringify(serverConfig.env, null, 2);
-        }
-        
-        // If it's a direct serverConfig, it might not have enabled property
-        if (serverConfig.enabled !== undefined) {
-          document.getElementById('server-enabled').checked = serverConfig.enabled;
-        }
-      } else {
-        alert('Could not find valid MCP server configuration in the JSON');
-      }
-    } catch (error) {
-      alert(`Error parsing JSON: ${error.message}`);
+  // Add focus/blur events for sensitive fields
+  const commandInput = document.getElementById('server-command');
+  const argsInput = document.getElementById('server-args');
+  
+  // Show real value on focus
+  commandInput.addEventListener('focus', () => {
+    commandInput.value = commandInput.getAttribute('data-original-value');
+  });
+  
+  argsInput.addEventListener('focus', () => {
+    argsInput.value = argsInput.getAttribute('data-original-value');
+  });
+  
+  // Re-mask on blur if not changed
+  commandInput.addEventListener('blur', () => {
+    const originalValue = commandInput.getAttribute('data-original-value');
+    if (commandInput.value === originalValue) {
+      commandInput.value = maskSensitiveValue(originalValue);
+    } else {
+      // Value changed, update the original
+      commandInput.setAttribute('data-original-value', commandInput.value);
+    }
+  });
+  
+  argsInput.addEventListener('blur', () => {
+    const originalValue = argsInput.getAttribute('data-original-value');
+    if (argsInput.value === originalValue) {
+      argsInput.value = originalValue.split(' ').map(arg => maskSensitiveValue(arg)).join(' ');
+    } else {
+      // Value changed, update the original
+      argsInput.setAttribute('data-original-value', argsInput.value);
     }
   });
   
   document.getElementById('save-btn').addEventListener('click', () => {
     // Validate and save the form
     const newServerName = document.getElementById('server-name').value.trim();
-    const command = document.getElementById('server-command').value.trim();
-    const argsString = document.getElementById('server-args').value.trim();
+    // Use original values stored in data attributes
+    const command = commandInput.getAttribute('data-original-value').trim();
+    const argsString = argsInput.getAttribute('data-original-value').trim();
     const envJson = document.getElementById('server-env').value.trim();
     const enabled = document.getElementById('server-enabled').checked;
     
