@@ -276,7 +276,7 @@ function renderServerList(servers) {
           ` : ''}
           <label class="switch" style="position: relative; display: inline-block; width: 40px; height: 20px;">
             <input type="checkbox" data-server="${serverName}" ${server.enabled ? 'checked' : ''} style="opacity: 0; width: 0; height: 0;">
-            <span style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 20px; ${server.enabled ? 'background-color: #1976d2;' : ''}"></span>
+            <span class="switch-slider" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: ${server.enabled ? '#1976d2' : '#ccc'}; transition: .4s; border-radius: 20px;"></span>
           </label>
           <button data-action="edit" data-server="${serverName}" style="background: none; border: none; cursor: pointer; color: #1976d2;">Edit</button>
           <button data-action="delete" data-server="${serverName}" style="background: none; border: none; cursor: pointer; color: #dc004e;">Delete</button>
@@ -292,6 +292,13 @@ function renderServerList(servers) {
     checkbox.addEventListener('change', (e) => {
       const serverName = e.target.getAttribute('data-server');
       const enabled = e.target.checked;
+      
+      // Update the switch color immediately
+      const switchSlider = e.target.nextElementSibling;
+      if (switchSlider) {
+        switchSlider.style.backgroundColor = enabled ? '#1976d2' : '#ccc';
+      }
+      
       toggleServer(serverName, enabled);
     });
   });
