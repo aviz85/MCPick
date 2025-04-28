@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="1024" height="1024" fill="#2E3B4E" rx="200" ry="200"/>
+  
+  <!-- Server stack -->
+  <rect x="312" y="300" width="400" height="100" rx="15" ry="15" fill="#4A86E8"/>
+  <rect x="312" y="430" width="400" height="100" rx="15" ry="15" fill="#4A86E8"/>
+  <rect x="312" y="560" width="400" height="100" rx="15" ry="15" fill="#4A86E8"/>
+  
+  <!-- Server lights/details -->
+  <circle cx="362" cy="350" r="15" fill="#5CFF5C"/>
+  <circle cx="412" cy="350" r="15" fill="#FFDA44"/>
+  <circle cx="362" cy="480" r="15" fill="#5CFF5C"/>
+  <circle cx="412" cy="480" r="15" fill="#FFDA44"/>
+  <circle cx="362" cy="610" r="15" fill="#5CFF5C"/>
+  <circle cx="412" cy="610" r="15" fill="#FFDA44"/>
+  
+  <!-- Cursor/picker element -->
+  <path d="M600 200 L650 250 L550 350 L500 300 Z" fill="#FFFFFF"/>
+  
+  <!-- Claude "C" symbol -->
+  <path d="M570 480 A100 100 0 1 1 570 680 A100 100 0 1 1 570 480 Z" fill="none" stroke="#FFFFFF" stroke-width="30"/>
+  <path d="M520 530 L520 630" stroke="#FFFFFF" stroke-width="30" stroke-linecap="round"/>
+</svg> 

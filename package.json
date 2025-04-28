@@ -3,9 +3,6 @@
   "version": "1.0.0",
   "description": "MCP Server Manager for Claude Desktop",
   "main": "dist/main/main.js",
-  "directories": {
-    "doc": "docs"
-  },
   "scripts": {
     "start": "electron .",
     "clean": "rm -rf dist dist_temp dist_build",
@@ -15,7 +12,8 @@
     "copy-files": "mkdir -p dist/renderer && cp src/renderer/index.html dist/renderer/ && cp src/renderer/simple-renderer.js dist/renderer/ && cp -r dist_build/* dist/",
     "bundle-renderer": "browserify src/renderer/index-browser.js -o dist/renderer/index-browser-bundle.js",
     "pack": "electron-builder --dir",
-    "dist": "electron-builder"
+    "dist": "electron-builder",
+    "generate-icons": "electron-icon-builder --input=./assets/icon.svg --output=./assets"
   },
   "keywords": [
     "mcp",
@@ -29,10 +27,12 @@
     "appId": "com.mcpick.app",
     "productName": "MCPick",
     "mac": {
-      "category": "public.app-category.utilities"
+      "category": "public.app-category.utilities",
+      "icon": "assets/icon.icns"
     },
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "assets/icon.ico"
     },
     "files": [
       "dist/**/*",
@@ -52,6 +52,7 @@
     "concurrently": "^8.2.2",
     "electron": "^30.1.4",
     "electron-builder": "^24.13.3",
+    "electron-icon-builder": "^2.0.1",
     "electron-is-dev": "^2.0.0",
     "typescript": "^5.4.5",
     "wait-on": "^7.2.0"

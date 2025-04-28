@@ -25,7 +25,12 @@ function maskSensitiveValue(value) {
   let result = value;
   
   try {
-    // Find and mask long sequences of alphanumeric characters and hyphens (16+ chars instead of 10+)
+    // Skip processing for npm package names and file paths
+    if (isNpmPackage(result) || isFilePath(result)) {
+      return result;
+    }
+    
+    // Find and mask long sequences of alphanumeric characters and hyphens (16+ chars)
     const longIdRegex = /([a-zA-Z0-9\-_]{16,})/g;
     let match;
     let lastIndex = 0;
@@ -39,12 +44,17 @@ function maskSensitiveValue(value) {
       const id = match[1];
       const startIndex = match.index;
       
-      // For very long strings, keep fewer visible characters
-      const charsToShow = Math.min(4, Math.floor(id.length / 6));
-      const maskedId = `${id.substring(0, charsToShow)}${'*'.repeat(Math.min(8, id.length - (charsToShow * 2)))}${id.substring(id.length - charsToShow)}`;
-      
-      // Add text before this match and the masked ID
-      maskedResult += result.substring(lastIndex, startIndex) + maskedId;
+      // Skip masking if the match contains a path separator or is part of a package name
+      if (id.includes('/') || id.includes('\\') || id.startsWith('@')) {
+        maskedResult += result.substring(lastIndex, startIndex + id.length);
+      } else {
+        // For very long strings, keep fewer visible characters
+        const charsToShow = Math.min(4, Math.floor(id.length / 6));
+        const maskedId = `${id.substring(0, charsToShow)}${'*'.repeat(Math.min(8, id.length - (charsToShow * 2)))}${id.substring(id.length - charsToShow)}`;
+        
+        // Add text before this match and the masked ID
+        maskedResult += result.substring(lastIndex, startIndex) + maskedId;
+      }
       
       // Update lastIndex for next iteration
       lastIndex = startIndex + id.length;
@@ -68,22 +78,6 @@ function maskSensitiveValue(value) {
       result = result.replace(regex, `$1`);
     });
     
-    // Handle URL patterns - less aggressive approach
-    const urlRegex = /(https?:\/\/[^\/\s]+)([^\s]*)/gi;
-    result = result.replace(urlRegex, (match, domain, path) => {
-      // Only mask very long IDs in paths
-      let maskedPath = path;
-      
-      // Look specifically for paths with "/u/", "/api/v1/", etc. and only mask very long IDs
-      const apiPathRegex = /(\/[^\/]+\/[^\/]*\/)([\da-f-]{20,})([^\/]*)/g;
-      maskedPath = maskedPath.replace(apiPathRegex, (match, prefix, id, suffix) => {
-        const maskedId = `${id.substring(0, 4)}${'*'.repeat(8)}${id.substring(id.length - 4)}`;
-        return `${prefix}${maskedId}${suffix}`;
-      });
-      
-      return domain + maskedPath;
-    });
-    
     // Look for common API key prefixes - be more selective
     const commonPrefixes = ['sk-', 'pk-', 'api-', 'key-', 'token-', 'secret-'];
     for (const prefix of commonPrefixes) {
@@ -97,6 +91,51 @@ function maskSensitiveValue(value) {
   }
   
   return result;
+}
+
+// Function to check if a string is an npm package name
+function isNpmPackage(str) {
+  // Check for scoped packages (starting with @)
+  if (str.startsWith('@')) {
+    return true;
+  }
+  
+  // Check for package paths format like package/subpackage
+  if (/^[a-zA-Z0-9\-_]+\/[a-zA-Z0-9\-_]+/.test(str)) {
+    return true;
+  }
+  
+  // Known package prefixes
+  const packagePrefixes = ['@model', '@openai', '@claude', '@anthropic', '@mcp', 
+                         'server-', 'react-', 'vue-', 'angular-', 'node-'];
+  
+  for (const prefix of packagePrefixes) {
+    if (str.includes(prefix)) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+// Function to check if a string is a file path
+function isFilePath(str) {
+  // Check for absolute and relative paths
+  if (str.includes('/') || str.includes('\\')) {
+    return true;
+  }
+  
+  // Check for Windows-style drive letters
+  if (/^[a-zA-Z]:\\/.test(str)) {
+    return true;
+  }
+  
+  // Check for URL paths
+  if (/^https?:\/\//.test(str)) {
+    return true;
+  }
+  
+  return false;
 }
 
 // Create a simple UI for config selection and server management
@@ -264,12 +303,31 @@ function renderServerList(servers) {
   
   serverList.querySelectorAll('button[data-action="toggle-mask"]').forEach(button => {
     button.addEventListener('click', (e) => {
-      const serverName = e.target.getAttribute('data-server');
+      // Get button element (might be the span inside the button that was clicked)
+      const buttonElement = e.target.closest('button[data-action="toggle-mask"]');
+      // Get server name from the button attribute
+      const serverName = buttonElement.getAttribute('data-server');
+      
+      // Find container using the server name
       const container = document.querySelector(`.command-container[data-server="${serverName}"]`);
+      if (!container) {
+        console.error('Command container not found for server:', serverName);
+        return;
+      }
+      
       const maskedEl = container.querySelector('.masked-text');
       const originalEl = container.querySelector('.original-text');
-      const showText = button.querySelector('.show-text');
-      const hideText = button.querySelector('.hide-text');
+      if (!maskedEl || !originalEl) {
+        console.error('Masked or original text elements not found');
+        return;
+      }
+      
+      const showText = buttonElement.querySelector('.show-text');
+      const hideText = buttonElement.querySelector('.hide-text');
+      if (!showText || !hideText) {
+        console.error('Show/hide text elements not found');
+        return;
+      }
       
       // Toggle visibility
       const isShowing = maskedEl.style.display === 'none';
