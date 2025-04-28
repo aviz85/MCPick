@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="script-src 'self';">
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline'">
   <title>MCPick - MCP Server Manager for Claude</title>
   <style>
     body {
@@ -47,5 +47,83 @@
   
   <!-- Simple renderer script -->
   <script src="simple-renderer.js"></script>
+  
+  <!-- Add immediate DOM sanitization for sensitive data -->
+  <script>
+    // Direct DOM sanitizer that runs every few seconds
+    function sanitizeDOMForSensitiveData() {
+      // Mask URLs with long IDs and UUIDs
+      const urlPattern = /(https?:\/\/[^\/\s]+\/[^\/\s]*\/)([a-zA-Z0-9\-_]{10,})(\/[^\s]*)?/gi;
+      
+      // More specific pattern for IDs - exclude common config file names
+      const idPattern = /\b([a-zA-Z0-9\-_]{20,})\b/g;
+      
+      // Function to mask text content
+      function maskText(text) {
+        if (!text || typeof text !== 'string') return text;
+        
+        // Skip masking for local file paths
+        if (text.includes('/Users/') || text.includes('\\Users\\') || 
+            text.includes('config.json') || text.includes('Configuration')) {
+          return text;
+        }
+        
+        // Mask URLs with IDs
+        text = text.replace(urlPattern, (match, prefix, id, suffix = '') => {
+          return `${prefix}${id.substring(0, 4)}****${id.substring(id.length - 4)}${suffix}`;
+        });
+        
+        // Mask standalone IDs (but exclude file paths and configuration files)
+        text = text.replace(idPattern, (match, id) => {
+          // Skip masking for configuration files and paths
+          if (match.includes('config') || match.includes('Config') ||
+              match.includes('/') || match.includes('\\')) {
+            return match;
+          }
+          return `${id.substring(0, 4)}****${id.substring(id.length - 4)}`;
+        });
+        
+        return text;
+      }
+      
+      // Get all text nodes in the document
+      const walker = document.createTreeWalker(
+        document.body,
+        NodeFilter.SHOW_TEXT,
+        null,
+        false
+      );
+      
+      // Process each text node
+      let node;
+      while (node = walker.nextNode()) {
+        if (node.nodeValue && node.nodeValue.trim()) {
+          const originalText = node.nodeValue;
+          const maskedText = maskText(originalText);
+          if (originalText !== maskedText) {
+            node.nodeValue = maskedText;
+          }
+        }
+      }
+    }
+    
+    // Run the sanitizer every 2 seconds and after DOM changes
+    setInterval(sanitizeDOMForSensitiveData, 2000);
+    
+    // Also run after the page is likely loaded
+    setTimeout(sanitizeDOMForSensitiveData, 1000);
+    setTimeout(sanitizeDOMForSensitiveData, 3000);
+    
+    // Create a MutationObserver to detect DOM changes
+    const observer = new MutationObserver((mutations) => {
+      setTimeout(sanitizeDOMForSensitiveData, 100);
+    });
+    
+    // Start observing the document
+    observer.observe(document.body, { 
+      childList: true, 
+      subtree: true 
+    });
+  </script>
 </body>
 </html> 

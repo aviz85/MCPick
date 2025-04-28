@@ -8,9 +8,11 @@
   },
   "scripts": {
     "start": "electron .",
-    "dev": "tsc && npm run bundle-renderer && electron .",
-    "build": "tsc && npm run bundle-renderer && electron-builder",
+    "clean": "rm -rf dist dist_temp dist_build",
+    "dev": "npm run clean && tsc && npm run copy-files && electron .",
+    "build": "npm run clean && tsc && npm run copy-files && electron-builder",
     "compile": "tsc",
+    "copy-files": "mkdir -p dist/renderer && cp src/renderer/index.html dist/renderer/ && cp src/renderer/simple-renderer.js dist/renderer/ && cp -r dist_build/* dist/",
     "bundle-renderer": "browserify src/renderer/index-browser.js -o dist/renderer/index-browser-bundle.js",
     "pack": "electron-builder --dir",
     "dist": "electron-builder"

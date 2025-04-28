@@ -251,6 +251,47 @@ ipcMain.handle('save-server', (_event, serverName: string, serverConfig: any) =>
   return true;
 });
 
+// Create a masked version of server data for display in UI
+ipcMain.handle('get-masked-servers', () => {
+  const servers = store.get('servers') || {};
+  const maskedServers: Record<string, any> = {};
+  
+  // Process each server to mask sensitive data
+  Object.entries(servers).forEach(([key, server]: [string, any]) => {
+    const maskedServer = { ...server };
+    
+    // Process command args if they contain sensitive patterns
+    if (Array.isArray(maskedServer.args)) {
+      maskedServer.args = maskedServer.args.map((arg: string) => maskSensitiveData(arg));
+    }
+    
+    maskedServers[key] = maskedServer;
+  });
+  
+  return maskedServers;
+});
+
+// Function to mask sensitive data
+function maskSensitiveData(value: string): string {
+  if (!value || typeof value !== 'string') return value;
+  
+  let result = value;
+  
+  // Mask URLs with UUIDs or long IDs
+  const urlWithIdPattern = /(https?:\/\/[^\/\s]+\/[^\/\s]*\/)([a-zA-Z0-9\-_]{10,})(\/[^\s]*)?/gi;
+  result = result.replace(urlWithIdPattern, (_match, prefix, id, suffix = '') => {
+    return `${prefix}${id.substring(0, 4)}****${id.substring(id.length - 4)}${suffix}`;
+  });
+  
+  // Mask standalone UUIDs or long IDs
+  const idPattern = /\b([a-zA-Z0-9\-_]{20,})\b/g;
+  result = result.replace(idPattern, (_match, id) => {
+    return `${id.substring(0, 4)}****${id.substring(id.length - 4)}`;
+  });
+  
+  return result;
+}
+
 // Delete server
 ipcMain.handle('delete-server', (_event, serverName: string) => {
   const servers = store.get('servers');

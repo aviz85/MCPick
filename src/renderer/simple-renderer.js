@@ -184,51 +184,206 @@ function toggleServer(serverName, enabled) {
 }
 
 // Show add server dialog
-function showAddServerDialog() {
-  // Simple implementation - use prompt dialogs
-  const serverName = prompt('Enter server name (letters, numbers, underscores only):');
-  if (!serverName) return;
+function showAddServerDialog(serverToEdit = null) {
+  const isEdit = !!serverToEdit;
+  const serverName = isEdit ? serverToEdit[0] : '';
+  const serverData = isEdit ? serverToEdit[1] : { command: 'npx', args: ['-y'], enabled: false, env: {} };
   
-  if (!/^[a-zA-Z0-9_-]+$/.test(serverName)) {
-    alert('Server name must contain only letters, numbers, underscores, and hyphens');
-    return;
-  }
+  // Create a modal overlay
+  const overlay = document.createElement('div');
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+  `;
   
-  const command = prompt('Enter command (e.g., npx):', 'npx');
-  if (!command) return;
+  // Create the form
+  const formHtml = `
+    <div style="background: white; border-radius: 8px; width: 600px; max-width: 90%; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+      <h2 style="margin-top: 0; color: #333;">${isEdit ? 'Edit Server' : 'Add New Server'}</h2>
+      
+      <div style="margin-bottom: 20px;">
+        <label style="display: block; margin-bottom: 5px; font-weight: bold;">Server Name:</label>
+        <input id="server-name" type="text" value="${serverName}" ${isEdit ? 'disabled' : ''} style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;" placeholder="e.g., memory, filesystem, github">
+        <small style="color: #666; display: block; margin-top: 5px;">Use letters, numbers, underscores, and hyphens only</small>
+      </div>
+      
+      <div style="margin-bottom: 20px;">
+        <label style="display: block; margin-bottom: 5px; font-weight: bold;">Command:</label>
+        <input id="server-command" type="text" value="${serverData.command}" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;" placeholder="e.g., npx">
+      </div>
+      
+      <div style="margin-bottom: 20px;">
+        <label style="display: block; margin-bottom: 5px; font-weight: bold;">Arguments (space separated):</label>
+        <input id="server-args" type="text" value="${serverData.args.join(' ')}" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;" placeholder="e.g., -y @modelcontextprotocol/server-memory">
+      </div>
+      
+      <div style="margin-bottom: 20px;">
+        <label style="display: block; margin-bottom: 5px; font-weight: bold;">Environment Variables (JSON):</label>
+        <textarea id="server-env" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; min-height: 100px;" placeholder='{"KEY1": "value1", "KEY2": "value2"}'>${JSON.stringify(serverData.env || {}, null, 2)}</textarea>
+      </div>
+      
+      <div style="margin-bottom: 20px;">
+        <label style="display: flex; align-items: center; cursor: pointer;">
+          <input id="server-enabled" type="checkbox" ${serverData.enabled ? 'checked' : ''} style="margin-right: 8px;">
+          <span>Enable Server</span>
+        </label>
+      </div>
+      
+      <div style="margin-bottom: 20px;">
+        <label style="display: block; margin-bottom: 5px; font-weight: bold;">Paste JSON Configuration:</label>
+        <textarea id="json-input" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; min-height: 100px;" placeholder='Paste MCP server configuration JSON here...'></textarea>
+        <button id="parse-json-btn" style="margin-top: 8px; padding: 5px 10px; background: #5c6bc0; color: white; border: none; border-radius: 4px; cursor: pointer;">Parse JSON</button>
+      </div>
+      
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+        <button id="cancel-btn" style="padding: 8px 16px; background: #f5f5f5; color: #333; border: none; border-radius: 4px; cursor: pointer;">Cancel</button>
+        <button id="save-btn" style="padding: 8px 16px; background: #1976d2; color: white; border: none; border-radius: 4px; cursor: pointer;">Save</button>
+      </div>
+    </div>
+  `;
   
-  const argsString = prompt('Enter arguments (space separated):', '-y');
-  const args = argsString ? argsString.split(' ').filter(arg => arg.trim()) : [];
+  overlay.innerHTML = formHtml;
+  document.body.appendChild(overlay);
   
-  const enableServer = confirm('Enable this server?');
+  // Set up event listeners
+  document.getElementById('cancel-btn').addEventListener('click', () => {
+    document.body.removeChild(overlay);
+  });
   
-  const server = {
-    command,
-    args,
-    enabled: enableServer
-  };
+  document.getElementById('parse-json-btn').addEventListener('click', () => {
+    try {
+      const jsonText = document.getElementById('json-input').value.trim();
+      if (!jsonText) {
+        alert('Please paste JSON data first');
+        return;
+      }
+      
+      // Try to parse the JSON
+      const jsonData = JSON.parse(jsonText);
+      
+      // Attempt to find MCP server configuration in the JSON
+      let serverConfig = null;
+      let serverNameFromJson = '';
+      
+      // Case 1: Direct server config with command, args
+      if (jsonData.command && Array.isArray(jsonData.args)) {
+        serverConfig = jsonData;
+      }
+      // Case 2: Inside mcpServers object
+      else if (jsonData.mcpServers) {
+        const servers = Object.entries(jsonData.mcpServers);
+        if (servers.length > 0) {
+          [serverNameFromJson, serverConfig] = servers[0];
+        }
+      }
+      // Case 3: Single key with server config
+      else {
+        const keys = Object.keys(jsonData);
+        if (keys.length === 1 && typeof jsonData[keys[0]] === 'object') {
+          serverNameFromJson = keys[0];
+          serverConfig = jsonData[keys[0]];
+        }
+      }
+      
+      if (serverConfig) {
+        // Fill the form with the parsed data
+        if (serverNameFromJson && !isEdit) {
+          document.getElementById('server-name').value = serverNameFromJson;
+        }
+        
+        if (serverConfig.command) {
+          document.getElementById('server-command').value = serverConfig.command;
+        }
+        
+        if (Array.isArray(serverConfig.args)) {
+          document.getElementById('server-args').value = serverConfig.args.join(' ');
+        }
+        
+        if (serverConfig.env) {
+          document.getElementById('server-env').value = JSON.stringify(serverConfig.env, null, 2);
+        }
+        
+        // If it's a direct serverConfig, it might not have enabled property
+        if (serverConfig.enabled !== undefined) {
+          document.getElementById('server-enabled').checked = serverConfig.enabled;
+        }
+      } else {
+        alert('Could not find valid MCP server configuration in the JSON');
+      }
+    } catch (error) {
+      alert(`Error parsing JSON: ${error.message}`);
+    }
+  });
   
-  saveServer(serverName, server);
+  document.getElementById('save-btn').addEventListener('click', () => {
+    // Validate and save the form
+    const newServerName = document.getElementById('server-name').value.trim();
+    const command = document.getElementById('server-command').value.trim();
+    const argsString = document.getElementById('server-args').value.trim();
+    const envJson = document.getElementById('server-env').value.trim();
+    const enabled = document.getElementById('server-enabled').checked;
+    
+    // Validate server name
+    if (!newServerName) {
+      alert('Server name is required');
+      return;
+    }
+    
+    if (!isEdit && !/^[a-zA-Z0-9_-]+$/.test(newServerName)) {
+      alert('Server name must contain only letters, numbers, underscores, and hyphens');
+      return;
+    }
+    
+    // Validate command
+    if (!command) {
+      alert('Command is required');
+      return;
+    }
+    
+    // Parse arguments
+    const args = argsString ? argsString.split(' ').filter(arg => arg.trim()) : [];
+    
+    // Parse environment variables
+    let env = {};
+    if (envJson) {
+      try {
+        env = JSON.parse(envJson);
+        if (typeof env !== 'object' || env === null) {
+          throw new Error('Environment variables must be a JSON object');
+        }
+      } catch (error) {
+        alert(`Invalid environment variables JSON: ${error.message}`);
+        return;
+      }
+    }
+    
+    // Create server config
+    const newServerConfig = {
+      command,
+      args,
+      enabled,
+      ...(Object.keys(env).length > 0 ? { env } : {})
+    };
+    
+    // Save the server
+    saveServer(newServerName, newServerConfig);
+    
+    // Close the dialog
+    document.body.removeChild(overlay);
+  });
 }
 
 // Edit server
 function editServer(serverName, serverData) {
-  // Simple implementation - use prompt dialogs
-  const command = prompt('Enter command:', serverData.command);
-  if (!command) return;
-  
-  const argsString = prompt('Enter arguments (space separated):', serverData.args.join(' '));
-  const args = argsString ? argsString.split(' ').filter(arg => arg.trim()) : [];
-  
-  const enableServer = confirm('Enable this server?');
-  
-  const server = {
-    command,
-    args,
-    enabled: enableServer
-  };
-  
-  saveServer(serverName, server);
+  showAddServerDialog([serverName, serverData]);
 }
 
 // Save server

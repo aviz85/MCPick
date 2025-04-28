@@ -14,10 +14,15 @@ import {
   FormControlLabel,
   Grid,
   Chip,
-  Tooltip
+  Tooltip,
+  Paper,
+  Alert,
+  InputAdornment
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import { Server, EnvVar } from '../types';
 
 interface ServerFormProps {
@@ -48,6 +53,11 @@ const ServerForm: React.FC<ServerFormProps> = ({
   const [newArg, setNewArg] = useState('');
   const [newEnvKey, setNewEnvKey] = useState('');
   const [newEnvValue, setNewEnvValue] = useState('');
+  
+  // Visibility state for sensitive data
+  const [showSensitiveData, setShowSensitiveData] = useState(false);
+  const [visibleArgIndex, setVisibleArgIndex] = useState<number | null>(null);
+  const [visibleEnvIndex, setVisibleEnvIndex] = useState<number | null>(null);
   
   // Validation
   const [nameError, setNameError] = useState('');
@@ -176,6 +186,70 @@ const ServerForm: React.FC<ServerFormProps> = ({
     }
   };
   
+  // Mask sensitive data like API keys, IDs, or other long sequences
+  const maskSensitiveValue = (value: string): string => {
+    if (!value || typeof value !== 'string') return value;
+    
+    // Skip masking for local file paths and configuration
+    if (value.includes('/Users/') || value.includes('\\Users\\') || 
+        value.includes('config.json') || value.includes('Configuration')) {
+      return value;
+    }
+    
+    let result = value;
+    
+    try {
+      // Mask URLs with UUIDs or long IDs
+      const urlPattern = /(https?:\/\/[^\/\s]+\/[^\/\s]*\/)([a-zA-Z0-9\-_]{10,})(\/[^\s]*)?/gi;
+      result = result.replace(urlPattern, (_match, prefix, id, suffix = '') => {
+        return `${prefix}${id.substring(0, 4)}****${id.substring(id.length - 4)}${suffix}`;
+      });
+      
+      // Mask standalone UUIDs or long IDs
+      const idPattern = /\b([a-zA-Z0-9\-_]{20,})\b/g;
+      result = result.replace(idPattern, (_match, id) => {
+        // Skip masking for configuration files and paths
+        if (_match.includes('config') || _match.includes('Config') ||
+            _match.includes('/') || _match.includes('\\')) {
+          return _match;
+        }
+        return `${id.substring(0, 4)}****${id.substring(id.length - 4)}`;
+      });
+    } catch (error) {
+      console.error('Error in masking function:', error);
+    }
+    
+    return result;
+  };
+  
+  // Toggle visibility for all sensitive data
+  const toggleAllSensitiveData = () => {
+    setShowSensitiveData(!showSensitiveData);
+  };
+  
+  // Toggle visibility for a specific argument
+  const toggleArgVisibility = (index: number) => {
+    if (visibleArgIndex === index) {
+      setVisibleArgIndex(null);
+    } else {
+      setVisibleArgIndex(index);
+    }
+  };
+  
+  // Toggle visibility for a specific environment variable
+  const toggleEnvVisibility = (index: number) => {
+    if (visibleEnvIndex === index) {
+      setVisibleEnvIndex(null);
+    } else {
+      setVisibleEnvIndex(index);
+    }
+  };
+  
+  // Determine if a value should be displayed masked or not
+  const getDisplayValue = (value: string, isVisible: boolean): string => {
+    return isVisible ? value : maskSensitiveValue(value);
+  };
+  
   return (
     <Dialog
       open={open}
@@ -183,170 +257,210 @@ const ServerForm: React.FC<ServerFormProps> = ({
       maxWidth="md"
       fullWidth
     >
-      <DialogTitle>{title}</DialogTitle>
+      <DialogTitle>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Typography variant="h6">{title}</Typography>
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={showSensitiveData ? <VisibilityOffIcon /> : <VisibilityIcon />}
+            onClick={toggleAllSensitiveData}
+          >
+            {showSensitiveData ? "Hide Sensitive Data" : "Show Sensitive Data"}
+          </Button>
+        </Box>
+      </DialogTitle>
       <DialogContent>
         <Box sx={{ pt: 1 }}>
           <Grid container spacing={3}>
-            {/* Basic Info */}
             <Grid item xs={12}>
-              <Typography variant="subtitle1" gutterBottom>
-                Basic Information
-              </Typography>
-              
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={7}>
+              <Grid container spacing={3}>
+                <Grid item xs={12}>
+                  <Typography variant="subtitle1" gutterBottom>
+                    Basic Information
+                  </Typography>
+                  
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} sm={7}>
+                      <TextField
+                        label="Server Name"
+                        value={serverName}
+                        onChange={(e) => setServerName(e.target.value)}
+                        fullWidth
+                        required
+                        error={!!nameError}
+                        helperText={nameError}
+                        disabled={disabled || isSaving || (initialData !== undefined && initialData !== null)}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={5}>
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={enabled}
+                            onChange={(e) => setEnabled(e.target.checked)}
+                            disabled={disabled || isSaving}
+                            color="primary"
+                          />
+                        }
+                        label="Enable Server"
+                      />
+                    </Grid>
+                  </Grid>
+                </Grid>
+                
+                <Grid item xs={12}>
                   <TextField
-                    label="Server Name"
-                    value={serverName}
-                    onChange={(e) => setServerName(e.target.value)}
+                    label="Command"
+                    value={command}
+                    onChange={(e) => setCommand(e.target.value)}
                     fullWidth
                     required
-                    error={!!nameError}
-                    helperText={nameError}
-                    disabled={disabled || isSaving || (initialData !== undefined && initialData !== null)}
+                    error={!!commandError}
+                    helperText={commandError}
+                    disabled={disabled || isSaving}
                   />
                 </Grid>
-                <Grid item xs={12} sm={5}>
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={enabled}
-                        onChange={(e) => setEnabled(e.target.checked)}
+                
+                <Grid item xs={12}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                    <Typography variant="subtitle1">Arguments</Typography>
+                  </Box>
+                  
+                  <Box sx={{ mb: 2, display: 'flex' }}>
+                    <TextField
+                      label="Add Argument"
+                      value={newArg}
+                      onChange={(e) => setNewArg(e.target.value)}
+                      onKeyDown={handleArgKeyPress}
+                      fullWidth
+                      disabled={disabled || isSaving}
+                      sx={{ mr: 1 }}
+                    />
+                    <Button
+                      variant="contained"
+                      onClick={handleAddArg}
+                      disabled={!newArg.trim() || disabled || isSaving}
+                      startIcon={<AddIcon />}
+                    >
+                      Add
+                    </Button>
+                  </Box>
+                  
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                    {args.map((arg, index) => (
+                      <Chip
+                        key={index}
+                        label={getDisplayValue(arg, showSensitiveData || visibleArgIndex === index)}
+                        onDelete={() => handleRemoveArg(index)}
+                        disabled={disabled || isSaving}
+                        icon={
+                          <IconButton 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleArgVisibility(index);
+                            }}
+                            size="small"
+                          >
+                            {showSensitiveData || visibleArgIndex === index ? 
+                              <VisibilityOffIcon fontSize="small" /> : 
+                              <VisibilityIcon fontSize="small" />
+                            }
+                          </IconButton>
+                        }
+                      />
+                    ))}
+                    {args.length === 0 && (
+                      <Typography variant="body2" color="text.secondary">
+                        No arguments added
+                      </Typography>
+                    )}
+                  </Box>
+                </Grid>
+                
+                <Grid item xs={12}>
+                  <Typography variant="subtitle1" gutterBottom>
+                    Environment Variables
+                  </Typography>
+                  
+                  <Grid container spacing={2} sx={{ mb: 2 }}>
+                    <Grid item xs={12} sm={5}>
+                      <TextField
+                        label="Environment Variable Key"
+                        value={newEnvKey}
+                        onChange={(e) => setNewEnvKey(e.target.value)}
+                        fullWidth
                         disabled={disabled || isSaving}
                       />
-                    }
-                    label="Enable Server"
-                  />
+                    </Grid>
+                    <Grid item xs={12} sm={5}>
+                      <TextField
+                        label="Environment Variable Value"
+                        value={newEnvValue}
+                        onChange={(e) => setNewEnvValue(e.target.value)}
+                        fullWidth
+                        disabled={disabled || isSaving}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={2}>
+                      <Button
+                        variant="contained"
+                        onClick={handleAddEnvVar}
+                        disabled={!newEnvKey.trim() || !newEnvValue.trim() || disabled || isSaving}
+                        startIcon={<AddIcon />}
+                        fullWidth
+                        sx={{ height: '56px' }}
+                      >
+                        Add
+                      </Button>
+                    </Grid>
+                  </Grid>
+                  
+                  {envVars.length > 0 ? (
+                    <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                      {envVars.map((env, index) => (
+                        <React.Fragment key={index}>
+                          {index > 0 && <Divider />}
+                          <Box sx={{ display: 'flex', p: 1, alignItems: 'center' }}>
+                            <Box sx={{ flex: 1 }}>
+                              <Typography>
+                                <strong>{env.key}:</strong> {
+                                  getDisplayValue(
+                                    env.value, 
+                                    showSensitiveData || visibleEnvIndex === index
+                                  )
+                                }
+                              </Typography>
+                            </Box>
+                            <IconButton
+                              onClick={() => toggleEnvVisibility(index)}
+                              size="small"
+                              sx={{ mr: 1 }}
+                            >
+                              {showSensitiveData || visibleEnvIndex === index ? 
+                                <VisibilityOffIcon /> : 
+                                <VisibilityIcon />
+                              }
+                            </IconButton>
+                            <IconButton
+                              color="error"
+                              onClick={() => handleRemoveEnvVar(index)}
+                              disabled={disabled || isSaving}
+                              size="small"
+                            >
+                              <DeleteIcon />
+                            </IconButton>
+                          </Box>
+                        </React.Fragment>
+                      ))}
+                    </Box>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      No environment variables added
+                    </Typography>
+                  )}
                 </Grid>
               </Grid>
-            </Grid>
-            
-            {/* Command */}
-            <Grid item xs={12}>
-              <TextField
-                label="Command"
-                value={command}
-                onChange={(e) => setCommand(e.target.value)}
-                fullWidth
-                required
-                error={!!commandError}
-                helperText={commandError}
-                disabled={disabled || isSaving}
-              />
-            </Grid>
-            
-            {/* Arguments */}
-            <Grid item xs={12}>
-              <Typography variant="subtitle1" gutterBottom>
-                Arguments
-              </Typography>
-              
-              <Box sx={{ mb: 2, display: 'flex' }}>
-                <TextField
-                  label="Add Argument"
-                  value={newArg}
-                  onChange={(e) => setNewArg(e.target.value)}
-                  onKeyDown={handleArgKeyPress}
-                  fullWidth
-                  disabled={disabled || isSaving}
-                  sx={{ mr: 1 }}
-                />
-                <Button
-                  variant="contained"
-                  onClick={handleAddArg}
-                  disabled={!newArg.trim() || disabled || isSaving}
-                  startIcon={<AddIcon />}
-                >
-                  Add
-                </Button>
-              </Box>
-              
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                {args.map((arg, index) => (
-                  <Chip
-                    key={index}
-                    label={arg}
-                    onDelete={() => handleRemoveArg(index)}
-                    disabled={disabled || isSaving}
-                  />
-                ))}
-                {args.length === 0 && (
-                  <Typography variant="body2" color="text.secondary">
-                    No arguments added
-                  </Typography>
-                )}
-              </Box>
-            </Grid>
-            
-            {/* Environment Variables */}
-            <Grid item xs={12}>
-              <Typography variant="subtitle1" gutterBottom>
-                Environment Variables
-              </Typography>
-              
-              <Grid container spacing={2} sx={{ mb: 2 }}>
-                <Grid item xs={12} sm={5}>
-                  <TextField
-                    label="Environment Variable Key"
-                    value={newEnvKey}
-                    onChange={(e) => setNewEnvKey(e.target.value)}
-                    fullWidth
-                    disabled={disabled || isSaving}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={5}>
-                  <TextField
-                    label="Environment Variable Value"
-                    value={newEnvValue}
-                    onChange={(e) => setNewEnvValue(e.target.value)}
-                    fullWidth
-                    disabled={disabled || isSaving}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={2}>
-                  <Button
-                    variant="contained"
-                    onClick={handleAddEnvVar}
-                    disabled={!newEnvKey.trim() || !newEnvValue.trim() || disabled || isSaving}
-                    startIcon={<AddIcon />}
-                    fullWidth
-                    sx={{ height: '56px' }}
-                  >
-                    Add
-                  </Button>
-                </Grid>
-              </Grid>
-              
-              {envVars.length > 0 ? (
-                <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
-                  {envVars.map((env, index) => (
-                    <React.Fragment key={index}>
-                      {index > 0 && <Divider />}
-                      <Box sx={{ display: 'flex', p: 1, alignItems: 'center' }}>
-                        <Box sx={{ flex: 1 }}>
-                          <Tooltip title={env.value} placement="top">
-                            <Typography>
-                              <strong>{env.key}:</strong> {env.value.length > 30 ? `${env.value.substring(0, 30)}...` : env.value}
-                            </Typography>
-                          </Tooltip>
-                        </Box>
-                        <IconButton
-                          color="error"
-                          onClick={() => handleRemoveEnvVar(index)}
-                          disabled={disabled || isSaving}
-                          size="small"
-                        >
-                          <DeleteIcon />
-                        </IconButton>
-                      </Box>
-                    </React.Fragment>
-                  ))}
-                </Box>
-              ) : (
-                <Typography variant="body2" color="text.secondary">
-                  No environment variables added
-                </Typography>
-              )}
             </Grid>
           </Grid>
         </Box>

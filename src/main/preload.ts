@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld(
     
     // Server Management
     getServers: () => ipcRenderer.invoke('get-servers'),
+    getMaskedServers: () => ipcRenderer.invoke('get-masked-servers'),
     toggleServer: (serverName: string, enabled: boolean) => 
       ipcRenderer.invoke('toggle-server', serverName, enabled),
     saveServer: (serverName: string, serverConfig: any) => 

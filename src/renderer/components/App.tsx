@@ -20,6 +20,7 @@ declare global {
       getAppStatus: () => Promise<{ configPath: string, configExists: boolean }>;
       browseConfigFile: () => Promise<{ canceled: boolean, configPath?: string, configExists?: boolean }>;
       getServers: () => Promise<Record<string, Server>>;
+      getMaskedServers: () => Promise<Record<string, Server>>;
       toggleServer: (serverName: string, enabled: boolean) => Promise<boolean>;
       saveServer: (serverName: string, serverConfig: Server) => Promise<boolean>;
       deleteServer: (serverName: string) => Promise<boolean>;
@@ -31,7 +32,24 @@ const App: React.FC = () => {
   const [configPath, setConfigPath] = useState<string>('');
   const [configExists, setConfigExists] = useState<boolean>(false);
   const [servers, setServers] = useState<Record<string, Server>>({});
+  const [maskedServers, setMaskedServers] = useState<Record<string, Server>>({});
   const [error, setError] = useState<string | null>(null);
+
+  // Function to load servers (both actual and masked)
+  const loadServers = async () => {
+    try {
+      // Get actual servers for operations
+      const serverList = await window.api.getServers();
+      setServers(serverList);
+      
+      // Get masked servers for display
+      const maskedList = await window.api.getMaskedServers();
+      setMaskedServers(maskedList);
+    } catch (err) {
+      setError('Failed to load servers.');
+      console.error(err);
+    }
+  };
 
   // Initialize app
   useEffect(() => {
@@ -44,8 +62,7 @@ const App: React.FC = () => {
         
         // If config exists, load servers
         if (status.configExists) {
-          const serverList = await window.api.getServers();
-          setServers(serverList);
+          await loadServers();
         }
       } catch (err) {
         setError('Failed to initialize app. Please restart.');
@@ -65,8 +82,9 @@ const App: React.FC = () => {
         setConfigExists(result.configExists || false);
         
         // Reload servers after changing config
-        const serverList = await window.api.getServers();
-        setServers(serverList);
+        if (result.configExists) {
+          await loadServers();
+        }
       }
     } catch (err) {
       setError('Failed to select configuration file.');
@@ -79,8 +97,17 @@ const App: React.FC = () => {
     try {
       await window.api.toggleServer(serverName, enabled);
       
-      // Update local state
+      // Update local state for servers
       setServers(prev => ({
+        ...prev,
+        [serverName]: {
+          ...prev[serverName],
+          enabled
+        }
+      }));
+      
+      // Update masked servers as well
+      setMaskedServers(prev => ({
         ...prev,
         [serverName]: {
           ...prev[serverName],
@@ -101,11 +128,8 @@ const App: React.FC = () => {
     try {
       await window.api.saveServer(serverName, serverConfig);
       
-      // Update local state
-      setServers(prev => ({
-        ...prev,
-        [serverName]: serverConfig
-      }));
+      // Reload servers to get fresh data
+      await loadServers();
       
       return true;
     } catch (err) {
@@ -120,8 +144,14 @@ const App: React.FC = () => {
     try {
       await window.api.deleteServer(serverName);
       
-      // Update local state
+      // Update local state for both servers and masked servers
       setServers(prev => {
+        const newServers = { ...prev };
+        delete newServers[serverName];
+        return newServers;
+      });
+      
+      setMaskedServers(prev => {
         const newServers = { ...prev };
         delete newServers[serverName];
         return newServers;
@@ -168,7 +198,8 @@ const App: React.FC = () => {
           {configExists && (
             <Paper sx={{ p: 3 }}>
               <ServerList 
-                servers={servers}
+                servers={maskedServers}
+                actualServers={servers}
                 onToggle={handleToggleServer}
                 onSave={handleSaveServer}
                 onDelete={handleDeleteServer}
