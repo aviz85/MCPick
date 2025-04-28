@@ -25,8 +25,8 @@ function maskSensitiveValue(value) {
   let result = value;
   
   try {
-    // Skip processing for npm package names, file paths, or server names
-    if (isNpmPackage(result) || isFilePath(result) || isServerName(result)) {
+    // Skip processing for npm package names and file paths
+    if (isNpmPackage(result) || isFilePath(result)) {
       return result;
     }
     
@@ -132,43 +132,6 @@ function isFilePath(str) {
   
   // Check for URL paths
   if (/^https?:\/\//.test(str)) {
-    return true;
-  }
-  
-  return false;
-}
-
-// Function to check if a string is a server name
-function isServerName(str) {
-  // Known server name patterns
-  const serverNamePatterns = [
-    '-server',
-    'server-',
-    'mcp-',
-    'google-',
-    'contacts-',
-    'chat-',
-    'calendar-',
-    'email-',
-    'storage-',
-    'drive-',
-    'docs-',
-    'gmail-',
-    'cloud-'
-  ];
-  
-  for (const pattern of serverNamePatterns) {
-    if (str.includes(pattern)) {
-      return true;
-    }
-  }
-  
-  // Get the current list of server names from the UI
-  const serverListItems = document.querySelectorAll('[data-server]');
-  const serverNames = [...serverListItems].map(item => item.getAttribute('data-server'));
-  
-  // Check if this value is one of our server names
-  if (serverNames.includes(str)) {
     return true;
   }
   
