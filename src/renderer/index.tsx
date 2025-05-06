@@ -1,21 +1,8 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './components/App';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
-import CssBaseline from '@mui/material/CssBaseline';
-
-// Create a theme
-const theme = createTheme({
-  palette: {
-    mode: 'light',
-    primary: {
-      main: '#1976d2',
-    },
-    secondary: {
-      main: '#dc004e',
-    },
-  },
-});
+import ErrorBoundary from './components/ErrorBoundary';
+import { ConfigProvider } from './context/ConfigContext';
 
 // Create root element if it doesn't exist
 const rootElement = document.getElementById('root');
@@ -29,9 +16,10 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(document.getElementById('root')!);
 root.render(
   <React.StrictMode>
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <App />
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ConfigProvider>
+        <App />
+      </ConfigProvider>
+    </ErrorBoundary>
   </React.StrictMode>
 ); 
