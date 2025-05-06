@@ -17,6 +17,14 @@ interface StoreSchema {
       };
     };
   };
+  serverSets: {
+    [key: string]: {
+      name: string;
+      description: string;
+      prompt: string;
+      servers: string[];
+    }
+  };
 }
 
 // Initialize electron-store
@@ -271,6 +279,67 @@ ipcMain.handle('get-masked-servers', () => {
   return maskedServers;
 });
 
+// Delete server
+ipcMain.handle('delete-server', (_event, serverName: string) => {
+  const servers = store.get('servers');
+  if (servers[serverName]) {
+    delete servers[serverName];
+    store.set('servers', servers);
+    syncEnabledServersToClaudeConfig();
+    return true;
+  }
+  return false;
+});
+
+// Get server sets
+ipcMain.handle('get-server-sets', () => {
+  return store.get('serverSets') || {};
+});
+
+// Save server set
+ipcMain.handle('save-server-set', (_event, setId: string, setConfig: any) => {
+  const serverSets = store.get('serverSets') || {};
+  serverSets[setId] = setConfig;
+  store.set('serverSets', serverSets);
+  return true;
+});
+
+// Delete server set
+ipcMain.handle('delete-server-set', (_event, setId: string) => {
+  const serverSets = store.get('serverSets') || {};
+  if (serverSets[setId]) {
+    delete serverSets[setId];
+    store.set('serverSets', serverSets);
+    return true;
+  }
+  return false;
+});
+
+// Apply server set (enable/disable servers based on the set)
+ipcMain.handle('apply-server-set', (_event, setId: string) => {
+  const serverSets = store.get('serverSets') || {};
+  const servers = store.get('servers') || {};
+  const selectedSet = serverSets[setId];
+  
+  if (!selectedSet) return false;
+  
+  // First, disable all servers
+  Object.keys(servers).forEach(serverName => {
+    servers[serverName].enabled = false;
+  });
+  
+  // Then enable only servers in the set
+  selectedSet.servers.forEach((serverName: string) => {
+    if (servers[serverName]) {
+      servers[serverName].enabled = true;
+    }
+  });
+  
+  // Save changes and sync to Claude config
+  store.set('servers', servers);
+  return syncEnabledServersToClaudeConfig();
+});
+
 // Function to mask sensitive data
 function maskSensitiveData(value: string): string {
   if (!value || typeof value !== 'string') return value;
@@ -290,16 +359,4 @@ function maskSensitiveData(value: string): string {
   });
   
   return result;
-}
-
-// Delete server
-ipcMain.handle('delete-server', (_event, serverName: string) => {
-  const servers = store.get('servers');
-  if (servers[serverName]) {
-    delete servers[serverName];
-    store.set('servers', servers);
-    syncEnabledServersToClaudeConfig();
-    return true;
-  }
-  return false;
-}); 
+} 

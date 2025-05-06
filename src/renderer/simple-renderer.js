@@ -160,21 +160,50 @@ function renderSimpleUI() {
         </div>
       </div>
       
-      <div id="servers-container" style="background: white; border-radius: 5px; padding: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); display: none;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-          <h2 style="margin-top: 0; color: #333;">MCP Servers</h2>
-          <div style="display: flex; gap: 10px;">
-            <button id="parse-config-btn" style="padding: 8px 16px; background: #4caf50; color: white; border: none; border-radius: 4px; cursor: pointer;">
-              Parse Config JSON
+      <div id="tabs-container" style="background: white; border-radius: 5px; padding: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); display: none;">
+        <div style="border-bottom: 1px solid #ddd; margin-bottom: 20px;">
+          <div style="display: flex;">
+            <button id="servers-tab" class="tab-button active" style="padding: 10px 20px; background: none; border: none; cursor: pointer; position: relative; color: #1976d2; font-weight: bold;">
+              Servers
+              <span style="position: absolute; bottom: -1px; left: 0; width: 100%; height: 2px; background: #1976d2;"></span>
             </button>
-            <button id="add-server-btn" style="padding: 8px 16px; background: #1976d2; color: white; border: none; border-radius: 4px; cursor: pointer;">
-              Add Server
+            <button id="sets-tab" class="tab-button" style="padding: 10px 20px; background: none; border: none; cursor: pointer; position: relative; color: #666;">
+              Sets
             </button>
           </div>
         </div>
         
-        <div id="server-list">
-          <p style="color: #666; text-align: center; padding: 20px;">No servers found</p>
+        <div id="servers-content" class="tab-content">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h2 style="margin-top: 0; color: #333;">MCP Servers</h2>
+            <div style="display: flex; gap: 10px;">
+              <button id="parse-config-btn" style="padding: 8px 16px; background: #4caf50; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                Parse Config JSON
+              </button>
+              <button id="add-server-btn" style="padding: 8px 16px; background: #1976d2; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                Add Server
+              </button>
+            </div>
+          </div>
+          
+          <div id="server-list">
+            <p style="color: #666; text-align: center; padding: 20px;">No servers found</p>
+          </div>
+        </div>
+        
+        <div id="sets-content" class="tab-content" style="display: none;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h2 style="margin-top: 0; color: #333;">Server Sets</h2>
+            <div style="display: flex; gap: 10px;">
+              <button id="add-set-btn" style="padding: 8px 16px; background: #1976d2; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                Add Set
+              </button>
+            </div>
+          </div>
+          
+          <div id="set-list">
+            <p style="color: #666; text-align: center; padding: 20px;">No server sets found</p>
+          </div>
         </div>
       </div>
     </div>
@@ -187,6 +216,7 @@ function renderSimpleUI() {
       if (!result.canceled && result.configPath) {
         updateConfigStatus(result.configPath, result.configExists);
         loadServers();
+        loadServerSets();
       }
     }).catch(err => {
       showError(err);
@@ -200,6 +230,19 @@ function renderSimpleUI() {
   document.getElementById('parse-config-btn').addEventListener('click', () => {
     showParseConfigDialog();
   });
+  
+  document.getElementById('add-set-btn').addEventListener('click', () => {
+    showAddSetDialog();
+  });
+  
+  // Set up tab switching
+  document.getElementById('servers-tab').addEventListener('click', () => {
+    switchTab('servers');
+  });
+  
+  document.getElementById('sets-tab').addEventListener('click', () => {
+    switchTab('sets');
+  });
 
   // Check if config exists on startup
   checkConfigStatus();
@@ -211,12 +254,34 @@ function updateConfigStatus(configPath, configExists) {
   if (element) {
     if (configExists) {
       element.innerHTML = `<span style="color: green;">✓</span> ${configPath}`;
-      document.getElementById('servers-container').style.display = 'block';
+      document.getElementById('tabs-container').style.display = 'block';
     } else {
       element.innerHTML = `<span style="color: red;">✗</span> ${configPath} (File not found)`;
-      document.getElementById('servers-container').style.display = 'none';
+      document.getElementById('tabs-container').style.display = 'none';
     }
   }
+}
+
+// Switch between tabs
+function switchTab(tabName) {
+  // Update tab buttons
+  document.querySelectorAll('.tab-button').forEach(tab => {
+    tab.classList.remove('active');
+    tab.style.color = '#666';
+    tab.innerHTML = tab.innerHTML.replace('<span style="position: absolute; bottom: -1px; left: 0; width: 100%; height: 2px; background: #1976d2;"></span>', '');
+  });
+  
+  const activeTab = document.getElementById(`${tabName}-tab`);
+  activeTab.classList.add('active');
+  activeTab.style.color = '#1976d2';
+  activeTab.style.fontWeight = 'bold';
+  activeTab.innerHTML += '<span style="position: absolute; bottom: -1px; left: 0; width: 100%; height: 2px; background: #1976d2;"></span>';
+  
+  // Update content visibility
+  document.querySelectorAll('.tab-content').forEach(content => {
+    content.style.display = 'none';
+  });
+  document.getElementById(`${tabName}-content`).style.display = 'block';
 }
 
 // Check config status
@@ -226,6 +291,7 @@ function checkConfigStatus() {
       updateConfigStatus(status.configPath, status.configExists);
       if (status.configExists) {
         loadServers();
+        loadServerSets();
       }
     }
   }).catch(err => {
@@ -237,6 +303,15 @@ function checkConfigStatus() {
 function loadServers() {
   window.api.getServers().then(servers => {
     renderServerList(servers);
+  }).catch(err => {
+    showError(err);
+  });
+}
+
+// Load server sets
+function loadServerSets() {
+  window.api.getServerSets().then(sets => {
+    renderSetList(sets);
   }).catch(err => {
     showError(err);
   });
@@ -607,7 +682,7 @@ function showParseConfigDialog() {
       <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
         <button id="cancel-parse-btn" style="padding: 8px 16px; background: #f5f5f5; color: #333; border: none; border-radius: 4px; cursor: pointer;">Cancel</button>
         <button id="validate-btn" style="padding: 8px 16px; background: #ff9800; color: white; border: none; border-radius: 4px; cursor: pointer;">Validate</button>
-        <button id="parse-btn" style="padding: 8px 16px; background: #4caf50; color: white; border: none; border-radius: 4px; cursor: pointer;" disabled>Parse & Add Servers</button>
+        <button id="parse-btn" style="padding: 8px 16px; background: #4caf50; color: white; border: none; border-radius: 4px; opacity: 0.5; cursor: not-allowed;" disabled>Parse & Add Servers</button>
       </div>
     </div>
   `;
@@ -617,6 +692,15 @@ function showParseConfigDialog() {
   
   const validationMessage = document.getElementById('validation-message');
   const parseBtn = document.getElementById('parse-btn');
+  
+  // Add click handler for disabled parse button
+  parseBtn.addEventListener('click', (e) => {
+    if (parseBtn.disabled) {
+      validationMessage.textContent = 'Please validate the JSON configuration first';
+      validationMessage.style.color = '#ff9800';
+      validationMessage.style.display = 'block';
+    }
+  });
   
   // Set up event listeners
   document.getElementById('cancel-parse-btn').addEventListener('click', () => {
@@ -631,6 +715,8 @@ function showParseConfigDialog() {
       validationMessage.textContent = 'Error: JSON is empty';
       validationMessage.style.color = '#d32f2f';
       parseBtn.disabled = true;
+      parseBtn.style.opacity = '0.5';
+      parseBtn.style.cursor = 'not-allowed';
       return;
     }
     
@@ -641,6 +727,8 @@ function showParseConfigDialog() {
         validationMessage.textContent = 'Error: JSON must contain an "mcpServers" object';
         validationMessage.style.color = '#d32f2f';
         parseBtn.disabled = true;
+        parseBtn.style.opacity = '0.5';
+        parseBtn.style.cursor = 'not-allowed';
         return;
       }
       
@@ -649,32 +737,52 @@ function showParseConfigDialog() {
         validationMessage.textContent = 'Error: No servers found in the mcpServers object';
         validationMessage.style.color = '#d32f2f';
         parseBtn.disabled = true;
+        parseBtn.style.opacity = '0.5';
+        parseBtn.style.cursor = 'not-allowed';
         return;
       }
       
       validationMessage.textContent = `Valid JSON format. Found ${serverCount} server(s).`;
       validationMessage.style.color = '#4caf50';
       parseBtn.disabled = false;
+      parseBtn.style.opacity = '1';
+      parseBtn.style.cursor = 'pointer';
       
     } catch (error) {
       validationMessage.textContent = `Error: Invalid JSON - ${error.message}`;
       validationMessage.style.color = '#d32f2f';
       parseBtn.disabled = true;
+      parseBtn.style.opacity = '0.5';
+      parseBtn.style.cursor = 'not-allowed';
     }
   });
   
-  document.getElementById('parse-btn').addEventListener('click', () => {
+  document.getElementById('parse-btn').addEventListener('click', async () => {
+    const parseBtn = document.getElementById('parse-btn');
+    const validationMessage = document.getElementById('validation-message');
     const jsonText = document.getElementById('config-json').value.trim();
+    
+    // Disable button and show loading state
+    parseBtn.disabled = true;
+    parseBtn.textContent = 'Processing...';
     
     try {
       const parsedConfig = JSON.parse(jsonText);
       const servers = parsedConfig.mcpServers;
+      
+      if (!servers || typeof servers !== 'object') {
+        throw new Error('Invalid mcpServers format');
+      }
       
       // Process each server
       let serverCount = 0;
       const promises = [];
       
       for (const [serverName, serverConfig] of Object.entries(servers)) {
+        if (!serverConfig.command) {
+          throw new Error(`Server "${serverName}" is missing required command field`);
+        }
+        
         // Convert the Claude format to our app format
         const convertedConfig = {
           command: serverConfig.command,
@@ -684,26 +792,416 @@ function showParseConfigDialog() {
         };
         
         // Add the server
-        promises.push(window.api.saveServer(serverName, convertedConfig));
+        promises.push(
+          window.api.saveServer(serverName, convertedConfig)
+            .catch(err => {
+              throw new Error(`Failed to save server "${serverName}": ${err.message}`);
+            })
+        );
         serverCount++;
       }
       
       // Wait for all servers to be added
-      Promise.all(promises)
-        .then(() => {
-          document.body.removeChild(overlay);
-          alert(`Successfully added ${serverCount} server(s). All servers are disabled by default.`);
-          loadServers(); // Refresh the server list
-        })
-        .catch(error => {
-          alert(`Error adding servers: ${error.message}`);
-        });
+      await Promise.all(promises);
+      
+      // Success - close dialog and refresh
+      document.body.removeChild(overlay);
+      alert(`Successfully added ${serverCount} server(s). All servers are disabled by default.`);
+      loadServers(); // Refresh the server list
       
     } catch (error) {
-      validationMessage.textContent = `Error: Failed to parse JSON - ${error.message}`;
+      console.error('Error in parse-btn handler:', error);
+      validationMessage.textContent = `Error: ${error.message}`;
       validationMessage.style.color = '#d32f2f';
-      parseBtn.disabled = true;
+      
+      // Reset button state
+      parseBtn.disabled = false;
+      parseBtn.textContent = 'Parse & Add Servers';
     }
+  });
+}
+
+// Render server sets list
+function renderSetList(sets) {
+  const setList = document.getElementById('set-list');
+  if (!setList) return;
+  
+  // Validate input
+  if (!sets || typeof sets !== 'object') {
+    console.error('Invalid sets data:', sets);
+    setList.innerHTML = `<p style="color: #dc004e; text-align: center; padding: 20px;">Error: Invalid set data</p>`;
+    return;
+  }
+  
+  if (Object.keys(sets).length === 0) {
+    setList.innerHTML = `<p style="color: #666; text-align: center; padding: 20px;">No server sets found</p>`;
+    return;
+  }
+  
+  // Determine which set is active by checking which servers are enabled
+  let activeSetId = null;
+  
+  // Get enabled servers
+  window.api.getServers().then(servers => {
+    const enabledServers = Object.entries(servers)
+      .filter(([_, server]) => server.enabled)
+      .map(([name, _]) => name);
+    
+    // If we have enabled servers, try to find a matching set
+    if (enabledServers.length > 0) {
+      Object.entries(sets).forEach(([setId, set]) => {
+        // Check if this set's servers exactly match the enabled servers
+        const setServers = new Set(set.servers);
+        if (enabledServers.length === setServers.size && 
+            enabledServers.every(server => setServers.has(server))) {
+          activeSetId = setId;
+        }
+      });
+    }
+    
+    // Now render the set list
+    let html = '';
+    Object.entries(sets).forEach(([setId, set]) => {
+      const isActive = setId === activeSetId;
+      
+      // Ensure the set has valid data
+      const safeSet = {
+        name: set?.name || 'Unnamed Set',
+        description: set?.description || '',
+        prompt: set?.prompt || '',
+        servers: Array.isArray(set?.servers) ? set.servers : []
+      };
+      
+      html += `
+        <div class="server-set-item" 
+             data-set-id="${setId}" 
+             style="border-bottom: 1px solid #eee; padding: 15px; 
+                   background-color: ${isActive ? '#f0f7ff' : 'white'};
+                   border-left: ${isActive ? '4px solid #1976d2' : '4px solid transparent'};
+                   transition: all 0.2s ease;
+                   cursor: pointer;
+                   margin-bottom: 8px;
+                   border-radius: 4px;
+                   box-shadow: ${isActive ? '0 2px 8px rgba(0,0,0,0.1)' : 'none'}">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="flex-grow: 1;">
+              <div style="font-weight: bold; display: flex; align-items: center;">
+                ${isActive ? '<span style="color: #1976d2; margin-right: 8px;">●</span>' : ''}
+                ${safeSet.name}
+                ${isActive ? '<span style="font-size: 0.8em; background: #e3f2fd; color: #1976d2; padding: 2px 8px; border-radius: 12px; margin-left: 10px;">Active</span>' : ''}
+              </div>
+              <div style="color: #666; font-size: 0.9em; margin-top: 4px;">${safeSet.description || 'No description'}</div>
+              <div style="margin-top: 10px; display: flex; flex-wrap: wrap; gap: 4px;">
+                ${safeSet.servers.map(server => `
+                  <span style="background: #e0e0e0; color: #333; padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">${server}</span>
+                `).join('')}
+              </div>
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <button data-action="edit-set" data-set="${setId}" style="background: none; border: none; cursor: pointer; color: #1976d2;">
+                <span style="display: inline-block; width: 18px; height: 18px;">✎</span>
+              </button>
+              <button data-action="delete-set" data-set="${setId}" style="background: none; border: none; cursor: pointer; color: #dc004e;">
+                <span style="display: inline-block; width: 18px; height: 18px;">✕</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+    
+    setList.innerHTML = html;
+    
+    // Add event listeners for clicking the entire set item (for easier selection)
+    setList.querySelectorAll('.server-set-item').forEach(item => {
+      item.addEventListener('click', (e) => {
+        // Only handle clicks on the main area, not on buttons
+        if (e.target.tagName !== 'BUTTON' && !e.target.closest('button')) {
+          const setId = item.getAttribute('data-set-id');
+          applyServerSet(setId);
+        }
+      });
+    });
+    
+    // Add event listeners for buttons
+    setList.querySelectorAll('button[data-action="edit-set"]').forEach(button => {
+      button.addEventListener('click', (e) => {
+        e.stopPropagation(); // Prevent triggering the parent's click
+        
+        // Debug logs
+        console.log('Edit button clicked', e.target);
+        
+        // Find the closest button if clicking on a child element
+        const buttonElement = e.target.closest('button[data-action="edit-set"]');
+        console.log('Button element:', buttonElement);
+        
+        if (!buttonElement) {
+          console.error('Could not find button element');
+          return;
+        }
+        
+        const setId = buttonElement.getAttribute('data-set');
+        console.log('SetId from attribute:', setId);
+        
+        if (!setId) {
+          console.error('No set ID found on button');
+          return;
+        }
+        
+        // Get the set data explicitly from the original sets object
+        if (sets && sets[setId]) {
+          editServerSet(setId, sets[setId]);
+        } else {
+          console.error('Set not found in sets data:', setId, sets);
+          alert(`Could not edit set "${setId}": Set data not found`);
+        }
+      });
+    });
+    
+    setList.querySelectorAll('button[data-action="delete-set"]').forEach(button => {
+      button.addEventListener('click', (e) => {
+        e.stopPropagation(); // Prevent triggering the parent's click
+        
+        // Find the closest button if clicking on a child element
+        const buttonElement = e.target.closest('button[data-action="delete-set"]');
+        if (!buttonElement) {
+          console.error('Could not find delete button element');
+          return;
+        }
+        
+        const setId = buttonElement.getAttribute('data-set');
+        if (!setId) {
+          console.error('No set ID found on delete button');
+          return;
+        }
+        
+        // Get the set name for confirmation
+        const setName = sets[setId]?.name || setId;
+        deleteServerSet(setId, setName);
+      });
+    });
+  }).catch(err => {
+    console.error('Error determining active set:', err);
+    setList.innerHTML = `<p style="color: #dc004e; text-align: center; padding: 20px;">Error loading server sets</p>`;
+  });
+}
+
+// Apply a server set
+function applyServerSet(setId) {
+  // Skip confirmation dialog as requested
+  
+  window.api.applyServerSet(setId).then(success => {
+    if (success) {
+      // Skip success message as requested
+      loadServers(); // Refresh server list to show enabled/disabled state
+      loadServerSets(); // Refresh set list to update active state
+    } else {
+      alert(`Failed to apply server set`);
+    }
+  }).catch(err => {
+    showError(err);
+  });
+}
+
+// Show add/edit server set dialog
+function showAddSetDialog(setToEdit = null) {
+  const isEdit = !!setToEdit;
+  const setId = isEdit ? setToEdit[0] : '';
+  // Make sure setData has a default structure with all required fields
+  const setData = isEdit ? setToEdit[1] || {} : { name: '', description: '', prompt: '', servers: [] };
+  
+  // Ensure all fields have default values
+  setData.name = setData.name || '';
+  setData.description = setData.description || '';
+  setData.prompt = setData.prompt || '';
+  setData.servers = Array.isArray(setData.servers) ? setData.servers : [];
+  
+  // Create a modal overlay
+  const overlay = document.createElement('div');
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+  `;
+  
+  // Get list of servers for selection
+  window.api.getServers().then(servers => {
+    const serverNames = Object.keys(servers);
+    const selectedServers = setData.servers || [];
+    
+    // Create the form
+    const formHtml = `
+      <div style="background: white; border-radius: 8px; width: 600px; max-width: 90%; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+        <h2 style="margin-top: 0; color: #333;">${isEdit ? 'Edit Server Set' : 'Add New Server Set'}</h2>
+        
+        <div style="margin-bottom: 20px;">
+          <label style="display: block; margin-bottom: 5px; font-weight: bold;">Set ID:</label>
+          <input id="set-id" type="text" value="${setId}" ${isEdit ? 'disabled' : ''} style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;" placeholder="e.g., personal-assistant, project-x">
+          <small style="color: #666; display: block; margin-top: 5px;">Use letters, numbers, underscores, and hyphens only</small>
+        </div>
+        
+        <div style="margin-bottom: 20px;">
+          <label style="display: block; margin-bottom: 5px; font-weight: bold;">Name:</label>
+          <input id="set-name" type="text" value="${setData.name}" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;" placeholder="e.g., Personal Assistant, Project X Tools">
+        </div>
+        
+        <div style="margin-bottom: 20px;">
+          <label style="display: block; margin-bottom: 5px; font-weight: bold;">Description:</label>
+          <input id="set-description" type="text" value="${setData.description || ''}" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;" placeholder="e.g., Tools for personal productivity">
+        </div>
+        
+        <div style="margin-bottom: 20px;">
+          <label style="display: block; margin-bottom: 5px; font-weight: bold;">Servers:</label>
+          <div style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 10px;">
+            ${serverNames.map(serverName => `
+              <div style="margin-bottom: 5px;">
+                <label style="display: flex; align-items: center; cursor: pointer;">
+                  <input type="checkbox" name="server-checkbox" value="${serverName}" ${selectedServers.includes(serverName) ? 'checked' : ''} style="margin-right: 8px;">
+                  <span>${serverName}</span>
+                </label>
+              </div>
+            `).join('')}
+          </div>
+          <small style="color: #666; display: block; margin-top: 5px;">Select the servers that should be part of this set</small>
+        </div>
+        
+        <div style="margin-bottom: 20px;">
+          <label style="display: block; margin-bottom: 5px; font-weight: bold;">Prompt Template:</label>
+          <textarea id="set-prompt" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; min-height: 100px; font-family: sans-serif;" placeholder="e.g., You are a personal assistant with access to tools. If the user asks about their schedule, use the calendar tool to check their upcoming events.">${setData.prompt || ''}</textarea>
+          <small style="color: #666; display: block; margin-top: 5px;">Instructions for Claude on how to use this set of tools</small>
+        </div>
+        
+        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+          <button id="cancel-set-btn" style="padding: 8px 16px; background: #f5f5f5; color: #333; border: none; border-radius: 4px; cursor: pointer;">Cancel</button>
+          <button id="save-set-btn" style="padding: 8px 16px; background: #1976d2; color: white; border: none; border-radius: 4px; cursor: pointer;">Save</button>
+        </div>
+      </div>
+    `;
+    
+    overlay.innerHTML = formHtml;
+    document.body.appendChild(overlay);
+    
+    // Set up event listeners
+    document.getElementById('cancel-set-btn').addEventListener('click', () => {
+      document.body.removeChild(overlay);
+    });
+    
+    document.getElementById('save-set-btn').addEventListener('click', () => {
+      // Gather form data
+      const newSetId = document.getElementById('set-id').value.trim();
+      const name = document.getElementById('set-name').value.trim();
+      const description = document.getElementById('set-description').value.trim();
+      const prompt = document.getElementById('set-prompt').value.trim();
+      
+      // Get selected servers
+      const selectedServers = Array.from(document.querySelectorAll('input[name="server-checkbox"]:checked'))
+        .map(checkbox => checkbox.value);
+      
+      // Validate
+      if (!newSetId) {
+        alert('Set ID is required');
+        return;
+      }
+      
+      if (!isEdit && !/^[a-zA-Z0-9_-]+$/.test(newSetId)) {
+        alert('Set ID must contain only letters, numbers, underscores, and hyphens');
+        return;
+      }
+      
+      if (!name) {
+        alert('Name is required');
+        return;
+      }
+      
+      if (selectedServers.length === 0) {
+        alert('At least one server must be selected');
+        return;
+      }
+      
+      // Create set config
+      const setConfig = {
+        name,
+        description,
+        prompt,
+        servers: selectedServers
+      };
+      
+      // Save the set
+      saveServerSet(newSetId, setConfig);
+      
+      // Close the dialog
+      document.body.removeChild(overlay);
+    });
+  }).catch(err => {
+    showError(err);
+    document.body.removeChild(overlay);
+  });
+}
+
+// Edit server set
+function editServerSet(setId, setData) {
+  // Validate that we have the necessary data
+  if (!setId) {
+    console.error('Cannot edit set: Missing set ID');
+    return;
+  }
+  
+  // Make sure setData is valid
+  if (!setData) {
+    console.error(`Cannot edit set "${setId}": Missing set data`);
+    
+    // Fetch the set data directly from the API as a fallback
+    window.api.getServerSets().then(sets => {
+      if (sets && sets[setId]) {
+        showAddSetDialog([setId, sets[setId]]);
+      } else {
+        alert(`Cannot edit set "${setId}": Set not found`);
+      }
+    }).catch(err => {
+      showError(err);
+    });
+    
+    return;
+  }
+  
+  // If we have valid data, proceed with editing
+  showAddSetDialog([setId, setData]);
+}
+
+// Save server set
+function saveServerSet(setId, setData) {
+  window.api.saveServerSet(setId, setData).then(success => {
+    if (success) {
+      loadServerSets();
+    } else {
+      alert(`Failed to save server set "${setId}"`);
+    }
+  }).catch(err => {
+    showError(err);
+  });
+}
+
+// Delete server set
+function deleteServerSet(setId, setName) {
+  if (!confirm(`Are you sure you want to delete the server set "${setName}"?`)) {
+    return;
+  }
+  
+  window.api.deleteServerSet(setId).then(success => {
+    if (success) {
+      loadServerSets();
+    } else {
+      alert(`Failed to delete server set "${setName}"`);
+    }
+  }).catch(err => {
+    showError(err);
   });
 }
 

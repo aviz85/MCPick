@@ -8,6 +8,14 @@ export interface Server {
   };
 }
 
+// Server set configuration
+export interface ServerSet {
+  name: string;
+  description: string;
+  prompt: string;
+  servers: string[];
+}
+
 // Environment variable pair
 export interface EnvVar {
   key: string;

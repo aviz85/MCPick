@@ -16,6 +16,15 @@ contextBridge.exposeInMainWorld(
     saveServer: (serverName: string, serverConfig: any) => 
       ipcRenderer.invoke('save-server', serverName, serverConfig),
     deleteServer: (serverName: string) => 
-      ipcRenderer.invoke('delete-server', serverName)
+      ipcRenderer.invoke('delete-server', serverName),
+      
+    // Server Sets Management
+    getServerSets: () => ipcRenderer.invoke('get-server-sets'),
+    saveServerSet: (setId: string, setConfig: any) => 
+      ipcRenderer.invoke('save-server-set', setId, setConfig),
+    deleteServerSet: (setId: string) => 
+      ipcRenderer.invoke('delete-server-set', setId),
+    applyServerSet: (setId: string) => 
+      ipcRenderer.invoke('apply-server-set', setId)
   }
 ); 

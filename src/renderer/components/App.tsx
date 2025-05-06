@@ -8,11 +8,14 @@ import {
   Container,
   Paper,
   Stack,
-  Alert
+  Alert,
+  Tabs,
+  Tab
 } from '@mui/material';
 import ServerList from './ServerList';
+import ServerSetList from './ServerSetList';
 import ConfigPathSelector from './ConfigPathSelector';
-import { Server } from '../types';
+import { Server, ServerSet } from '../types';
 
 declare global {
   interface Window {
@@ -24,6 +27,10 @@ declare global {
       toggleServer: (serverName: string, enabled: boolean) => Promise<boolean>;
       saveServer: (serverName: string, serverConfig: Server) => Promise<boolean>;
       deleteServer: (serverName: string) => Promise<boolean>;
+      getServerSets: () => Promise<Record<string, ServerSet>>;
+      saveServerSet: (setId: string, setConfig: ServerSet) => Promise<boolean>;
+      deleteServerSet: (setId: string) => Promise<boolean>;
+      applyServerSet: (setId: string) => Promise<boolean>;
     }
   }
 }
@@ -33,7 +40,9 @@ const App: React.FC = () => {
   const [configExists, setConfigExists] = useState<boolean>(false);
   const [servers, setServers] = useState<Record<string, Server>>({});
   const [maskedServers, setMaskedServers] = useState<Record<string, Server>>({});
+  const [serverSets, setServerSets] = useState<Record<string, ServerSet>>({});
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<number>(0);
 
   // Function to load servers (both actual and masked)
   const loadServers = async () => {
@@ -51,6 +60,19 @@ const App: React.FC = () => {
     }
   };
 
+  // Function to load server sets
+  const loadServerSets = async () => {
+    try {
+      console.log('Loading server sets...');
+      const sets = await window.api.getServerSets();
+      console.log('Server sets loaded:', sets);
+      setServerSets(sets);
+    } catch (err) {
+      setError('Failed to load server sets.');
+      console.error(err);
+    }
+  };
+
   // Initialize app
   useEffect(() => {
     const initApp = async () => {
@@ -60,9 +82,10 @@ const App: React.FC = () => {
         setConfigPath(status.configPath);
         setConfigExists(status.configExists);
         
-        // If config exists, load servers
+        // If config exists, load servers and server sets
         if (status.configExists) {
           await loadServers();
+          await loadServerSets();
         }
       } catch (err) {
         setError('Failed to initialize app. Please restart.');
@@ -165,8 +188,71 @@ const App: React.FC = () => {
     }
   };
 
+  // Handle server set save (create or update)
+  const handleSaveServerSet = async (setId: string, setConfig: ServerSet) => {
+    try {
+      await window.api.saveServerSet(setId, setConfig);
+      
+      // Update local state
+      setServerSets(prev => ({
+        ...prev,
+        [setId]: setConfig
+      }));
+      
+      return true;
+    } catch (err) {
+      setError(`Failed to save server set "${setId}".`);
+      console.error(err);
+      return false;
+    }
+  };
+
+  // Handle server set deletion
+  const handleDeleteServerSet = async (setId: string) => {
+    try {
+      await window.api.deleteServerSet(setId);
+      
+      // Update local state
+      setServerSets(prev => {
+        const newSets = { ...prev };
+        delete newSets[setId];
+        return newSets;
+      });
+      
+      return true;
+    } catch (err) {
+      setError(`Failed to delete server set "${setId}".`);
+      console.error(err);
+      return false;
+    }
+  };
+
+  // Handle applying a server set (enables servers in the set, disables others)
+  const handleApplyServerSet = async (setId: string) => {
+    try {
+      const success = await window.api.applyServerSet(setId);
+      
+      if (success) {
+        // Reload servers to reflect changes
+        await loadServers();
+        return true;
+      }
+      return false;
+    } catch (err) {
+      setError(`Failed to apply server set "${setId}".`);
+      console.error(err);
+      return false;
+    }
+  };
+
   // Clear error message
   const clearError = () => setError(null);
+
+  // Handle tab change
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
+    console.log('Changing tab to:', newValue);
+    setActiveTab(newValue);
+  };
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
@@ -197,13 +283,34 @@ const App: React.FC = () => {
           
           {configExists && (
             <Paper sx={{ p: 3 }}>
-              <ServerList 
-                servers={maskedServers}
-                actualServers={servers}
-                onToggle={handleToggleServer}
-                onSave={handleSaveServer}
-                onDelete={handleDeleteServer}
-              />
+              <Tabs 
+                value={activeTab} 
+                onChange={handleTabChange}
+                sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}
+              >
+                <Tab label="Servers" />
+                <Tab label="Sets" />
+              </Tabs>
+              
+              {activeTab === 0 && (
+                <ServerList 
+                  servers={maskedServers}
+                  actualServers={servers}
+                  onToggle={handleToggleServer}
+                  onSave={handleSaveServer}
+                  onDelete={handleDeleteServer}
+                />
+              )}
+              
+              {activeTab === 1 && (
+                <ServerSetList
+                  serverSets={serverSets}
+                  servers={servers}
+                  onSave={handleSaveServerSet}
+                  onDelete={handleDeleteServerSet}
+                  onApply={handleApplyServerSet}
+                />
+              )}
             </Paper>
           )}
         </Stack>
