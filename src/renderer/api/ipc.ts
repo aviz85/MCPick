@@ -2,6 +2,7 @@ export const api = {
   browseConfigFile: () => window.api.browseConfigFile(),
   getAppStatus: () => window.api.getAppStatus(),
   openConfigLocation: () => window.api.openConfigLocation(),
+  restartClaude: () => window.api.restartClaude(),
   getServers: () => window.api.getServers(),
   saveServer: (name: string, cfg: any) => window.api.saveServer(name, cfg),
   toggleServer: (name: string, enabled: boolean) => window.api.toggleServer(name, enabled),
@@ -25,6 +26,7 @@ declare global {
       browseConfigFile: () => Promise<{ canceled: boolean; configPath?: string; configExists?: boolean }>;
       getAppStatus: () => Promise<{ configPath?: string; configExists: boolean }>;
       openConfigLocation: () => Promise<{ success: boolean; reason?: string }>;
+      restartClaude: () => Promise<{ success: boolean; reason?: string }>;
       getServers: () => Promise<Record<string, any>>;
       saveServer: (name: string, cfg: any) => Promise<boolean>;
       toggleServer: (name: string, enabled: boolean) => Promise<boolean>;

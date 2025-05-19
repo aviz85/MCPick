@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld(
     getAppStatus: () => ipcRenderer.invoke('get-app-status'),
     browseConfigFile: () => ipcRenderer.invoke('browse-config-file'),
     openConfigLocation: () => ipcRenderer.invoke('open-config-location'),
+    restartClaude: () => ipcRenderer.invoke('restart-claude'),
     
     // Server Management
     getServers: () => ipcRenderer.invoke('get-servers'),

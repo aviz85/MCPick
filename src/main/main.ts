@@ -679,6 +679,38 @@ ipcMain.handle('open-config-location', async () => {
   }
 });
 
+// Restart Claude application
+ipcMain.handle('restart-claude', async () => {
+  const { exec } = require('child_process');
+  
+  try {
+    // First try to kill Claude if it's running
+    await new Promise<void>((resolve) => {
+      exec('pkill -f "/Applications/Claude.app/Contents/MacOS/Claude"', () => {
+        // We resolve regardless of success or failure
+        resolve();
+      });
+    });
+    
+    // Then start Claude
+    await new Promise<void>((resolve, reject) => {
+      exec('open -a Claude', (err: Error | null) => {
+        if (err) {
+          console.error('Failed to start Claude:', err);
+          reject(err);
+        } else {
+          resolve();
+        }
+      });
+    });
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Error restarting Claude:', error);
+    return { success: false, reason: 'Failed to restart Claude' };
+  }
+});
+
 function maskSensitiveData(value: string): string {
   if (!value) return '';
   

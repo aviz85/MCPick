@@ -9,7 +9,7 @@
     "dev": "npm run clean && tsc && npm run copy-files && npm run bundle-renderer && electron .",
     "build": "npm run clean && tsc && npm run copy-files && npm run bundle-renderer && electron-builder",
     "compile": "tsc",
-    "copy-files": "mkdir -p dist/renderer && cp src/renderer/index.html dist/renderer/",
+    "copy-files": "mkdir -p dist/renderer/images && cp src/renderer/index.html dist/renderer/ && cp assets/icons/png/claude-ai-icon.png dist/renderer/images/",
     "bundle-renderer": "browserify -p tsify src/renderer/index.tsx -o dist/renderer/index-browser-bundle.js -t [ babelify --presets [ @babel/preset-env @babel/preset-react @babel/preset-typescript ] ]",
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
