@@ -337,6 +337,7 @@ function renderServerList(servers) {
       <div style="border-bottom: 1px solid #eee; padding: 10px 0; display: flex; justify-content: space-between; align-items: center;">
         <div style="flex-grow: 1; margin-right: 10px;">
           <div style="font-weight: bold;">${serverName}</div>
+          ${server.description ? `<div style="color: #666; font-size: 0.9em; margin-bottom: 4px;">${server.description}</div>` : ''}
           <div style="color: #666; font-size: 0.9em;" class="command-container" data-server="${serverName}">
             <span class="masked-text">${maskedCommand} ${maskedArgs}</span>
             <span class="original-text" style="display: none;">${server.command} ${server.args.join(' ')}</span>
@@ -476,6 +477,11 @@ function showAddServerDialog(serverToEdit = null) {
       </div>
       
       <div style="margin-bottom: 20px;">
+        <label style="display: block; margin-bottom: 5px; font-weight: bold;">Description:</label>
+        <input id="server-description" type="text" value="${serverData.description || ''}" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;" placeholder="e.g., Filesystem access server">
+      </div>
+      
+      <div style="margin-bottom: 20px;">
         <label style="display: block; margin-bottom: 5px; font-weight: bold;">Command:</label>
         <input id="server-command" type="text" 
                value="${isEdit ? maskSensitiveValue(serverData.command) : serverData.command}" 
@@ -561,6 +567,7 @@ function showAddServerDialog(serverToEdit = null) {
     const command = commandInput.getAttribute('data-original-value').trim();
     const argsString = argsInput.getAttribute('data-original-value').trim();
     const envJson = document.getElementById('server-env').value.trim();
+    const description = document.getElementById('server-description').value.trim();
     const enabled = document.getElementById('server-enabled').checked;
     
     // Validate server name
@@ -602,7 +609,8 @@ function showAddServerDialog(serverToEdit = null) {
       command,
       args,
       enabled,
-      ...(Object.keys(env).length > 0 ? { env } : {})
+      ...(Object.keys(env).length > 0 ? { env } : {}),
+      ...(description ? { description } : {})
     };
     
     // Save the server
@@ -673,8 +681,10 @@ function showParseConfigDialog() {
       <div style="margin-bottom: 20px;">
         <label style="display: block; margin-bottom: 5px; font-weight: bold;">Paste your server configuration JSON:</label>
         <textarea id="config-json" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; min-height: 200px; font-family: monospace;" 
-          placeholder='{"mcpServers": {"google-contacts-server": {"command": "uv", "args": ["--directory", "/path/to/mcp-google-contacts-server", "run", "main.py"], "disabled": false, "autoApprove": []}}}'></textarea>
-        <small style="color: #666; display: block; margin-top: 5px;">JSON must contain an "mcpServers" object with server configurations</small>
+          placeholder='{ "mcpServers": { "server-name": { "command": "python", "args": ["path/to/script.py"] } } }
+// OR direct format:
+{ "server-name": { "command": "python", "args": ["path/to/script.py"] } }'></textarea>
+        <small style="color: #666; display: block; margin-top: 5px;">JSON can be in any format as long as it contains objects with a "command" property - these will be detected as servers</small>
       </div>
       
       <div id="validation-message" style="margin-bottom: 20px; color: #d32f2f; display: none;"></div>
@@ -692,10 +702,27 @@ function showParseConfigDialog() {
   
   const validationMessage = document.getElementById('validation-message');
   const parseBtn = document.getElementById('parse-btn');
+  const cancelBtn = document.getElementById('cancel-parse-btn');
+  const validateBtn = document.getElementById('validate-btn');
+  
+  // Remove any existing event listeners by cloning and replacing the elements
+  const newParseBtn = parseBtn.cloneNode(true);
+  parseBtn.parentNode.replaceChild(newParseBtn, parseBtn);
+  
+  const newCancelBtn = cancelBtn.cloneNode(true);
+  cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+  
+  const newValidateBtn = validateBtn.cloneNode(true);
+  validateBtn.parentNode.replaceChild(newValidateBtn, validateBtn);
+  
+  // Re-get elements after replacement
+  const updatedParseBtn = document.getElementById('parse-btn');
+  const updatedCancelBtn = document.getElementById('cancel-parse-btn');
+  const updatedValidateBtn = document.getElementById('validate-btn');
   
   // Add click handler for disabled parse button
-  parseBtn.addEventListener('click', (e) => {
-    if (parseBtn.disabled) {
+  updatedParseBtn.addEventListener('click', (e) => {
+    if (updatedParseBtn.disabled) {
       validationMessage.textContent = 'Please validate the JSON configuration first';
       validationMessage.style.color = '#ff9800';
       validationMessage.style.display = 'block';
@@ -703,63 +730,56 @@ function showParseConfigDialog() {
   });
   
   // Set up event listeners
-  document.getElementById('cancel-parse-btn').addEventListener('click', () => {
+  updatedCancelBtn.addEventListener('click', () => {
     document.body.removeChild(overlay);
   });
   
-  document.getElementById('validate-btn').addEventListener('click', () => {
+  updatedValidateBtn.addEventListener('click', () => {
     const jsonText = document.getElementById('config-json').value.trim();
     validationMessage.style.display = 'block';
     
     if (!jsonText) {
       validationMessage.textContent = 'Error: JSON is empty';
       validationMessage.style.color = '#d32f2f';
-      parseBtn.disabled = true;
-      parseBtn.style.opacity = '0.5';
-      parseBtn.style.cursor = 'not-allowed';
+      updatedParseBtn.disabled = true;
+      updatedParseBtn.style.opacity = '0.5';
+      updatedParseBtn.style.cursor = 'not-allowed';
       return;
     }
     
     try {
       const parsedConfig = JSON.parse(jsonText);
       
-      if (!parsedConfig.mcpServers || typeof parsedConfig.mcpServers !== 'object' || Array.isArray(parsedConfig.mcpServers)) {
-        validationMessage.textContent = 'Error: JSON must contain an "mcpServers" object';
-        validationMessage.style.color = '#d32f2f';
-        parseBtn.disabled = true;
-        parseBtn.style.opacity = '0.5';
-        parseBtn.style.cursor = 'not-allowed';
-        return;
-      }
+      // Find server configs by scanning the entire object structure
+      const servers = findServersInObject(parsedConfig);
       
-      const serverCount = Object.keys(parsedConfig.mcpServers).length;
+      const serverCount = Object.keys(servers).length;
       if (serverCount === 0) {
-        validationMessage.textContent = 'Error: No servers found in the mcpServers object';
+        validationMessage.textContent = 'Error: No servers with command property found in the configuration';
         validationMessage.style.color = '#d32f2f';
-        parseBtn.disabled = true;
-        parseBtn.style.opacity = '0.5';
-        parseBtn.style.cursor = 'not-allowed';
+        updatedParseBtn.disabled = true;
+        updatedParseBtn.style.opacity = '0.5';
+        updatedParseBtn.style.cursor = 'not-allowed';
         return;
       }
       
       validationMessage.textContent = `Valid JSON format. Found ${serverCount} server(s).`;
       validationMessage.style.color = '#4caf50';
-      parseBtn.disabled = false;
-      parseBtn.style.opacity = '1';
-      parseBtn.style.cursor = 'pointer';
+      updatedParseBtn.disabled = false;
+      updatedParseBtn.style.opacity = '1';
+      updatedParseBtn.style.cursor = 'pointer';
       
     } catch (error) {
       validationMessage.textContent = `Error: Invalid JSON - ${error.message}`;
       validationMessage.style.color = '#d32f2f';
-      parseBtn.disabled = true;
-      parseBtn.style.opacity = '0.5';
-      parseBtn.style.cursor = 'not-allowed';
+      updatedParseBtn.disabled = true;
+      updatedParseBtn.style.opacity = '0.5';
+      updatedParseBtn.style.cursor = 'not-allowed';
     }
   });
   
-  document.getElementById('parse-btn').addEventListener('click', async () => {
-    const parseBtn = document.getElementById('parse-btn');
-    const validationMessage = document.getElementById('validation-message');
+  updatedParseBtn.addEventListener('click', async () => {
+    const parseBtn = updatedParseBtn;
     const jsonText = document.getElementById('config-json').value.trim();
     
     // Disable button and show loading state
@@ -768,27 +788,26 @@ function showParseConfigDialog() {
     
     try {
       const parsedConfig = JSON.parse(jsonText);
-      const servers = parsedConfig.mcpServers;
       
-      if (!servers || typeof servers !== 'object') {
-        throw new Error('Invalid mcpServers format');
+      // Find server configs by scanning the entire object structure
+      const servers = findServersInObject(parsedConfig);
+      
+      const serverCount = Object.keys(servers).length;
+      if (serverCount === 0) {
+        throw new Error('No servers with command property found in the configuration');
       }
       
       // Process each server
-      let serverCount = 0;
       const promises = [];
       
       for (const [serverName, serverConfig] of Object.entries(servers)) {
-        if (!serverConfig.command) {
-          throw new Error(`Server "${serverName}" is missing required command field`);
-        }
-        
         // Convert the Claude format to our app format
         const convertedConfig = {
           command: serverConfig.command,
           args: serverConfig.args || [],
           enabled: false, // Always disabled by default
-          ...(serverConfig.env ? { env: serverConfig.env } : {})
+          ...(serverConfig.env ? { env: serverConfig.env } : {}),
+          ...(serverConfig.description ? { description: serverConfig.description } : {})
         };
         
         // Add the server
@@ -798,7 +817,6 @@ function showParseConfigDialog() {
               throw new Error(`Failed to save server "${serverName}": ${err.message}`);
             })
         );
-        serverCount++;
       }
       
       // Wait for all servers to be added
@@ -819,6 +837,35 @@ function showParseConfigDialog() {
       parseBtn.textContent = 'Parse & Add Servers';
     }
   });
+}
+
+// New helper function to find server configs in a JSON structure
+function findServersInObject(obj, parentKey = '') {
+  const foundServers = {};
+  
+  // Skip non-objects and nulls
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) {
+    return foundServers;
+  }
+  
+  // Check if this object is a server config (contains command property)
+  if (obj.command && typeof obj.command === 'string') {
+    // This is likely a server config
+    const serverName = parentKey || 'unnamed-server';
+    foundServers[serverName] = obj;
+    // Continue searching inside this object too, in case it contains nested server configs
+    // Don't return early!
+  }
+  
+  // Always scan all properties recursively
+  for (const [key, value] of Object.entries(obj)) {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      const serversInValue = findServersInObject(value, key);
+      Object.assign(foundServers, serversInValue);
+    }
+  }
+  
+  return foundServers;
 }
 
 // Render server sets list

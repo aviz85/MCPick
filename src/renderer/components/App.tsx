@@ -4,9 +4,11 @@ import Tabs from './Tabs';
 import ConfigSelector from './ConfigSelector';
 import ServersPage from '../pages/ServersPage';
 import SetsPage from '../pages/SetsPage';
+import InstructionsPage from '../pages/InstructionsPage';
 import { useConfig } from '../context/ConfigContext';
 import { ServersProvider } from '../context/ServersContext';
 import { SetsProvider } from '../context/SetsContext';
+import { InstructionsProvider } from '../context/InstructionsContext';
 
 const App: React.FC = () => {
   const { configExists } = useConfig();
@@ -24,10 +26,13 @@ const App: React.FC = () => {
       ) : (
         <ServersProvider>
           <SetsProvider>
-            <Tabs tabNames={['Servers', 'Sets']}>
-              <ServersPage />
-              <SetsPage />
-            </Tabs>
+            <InstructionsProvider>
+              <Tabs tabNames={['Servers', 'Sets', 'Instructions']}>
+                <ServersPage />
+                <SetsPage />
+                <InstructionsPage />
+              </Tabs>
+            </InstructionsProvider>
           </SetsProvider>
         </ServersProvider>
       )}

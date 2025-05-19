@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld(
     // App Status
     getAppStatus: () => ipcRenderer.invoke('get-app-status'),
     browseConfigFile: () => ipcRenderer.invoke('browse-config-file'),
+    openConfigLocation: () => ipcRenderer.invoke('open-config-location'),
     
     // Server Management
     getServers: () => ipcRenderer.invoke('get-servers'),
@@ -25,6 +26,17 @@ contextBridge.exposeInMainWorld(
     deleteServerSet: (setId: string) => 
       ipcRenderer.invoke('delete-server-set', setId),
     applyServerSet: (setId: string) => 
-      ipcRenderer.invoke('apply-server-set', setId)
+      ipcRenderer.invoke('apply-server-set', setId),
+      
+    // Instructions Management
+    getInstructions: () => ipcRenderer.invoke('get-instructions'),
+    saveInstruction: (id: string, config: any) => 
+      ipcRenderer.invoke('save-instruction', id, config),
+    toggleInstruction: (id: string, enabled: boolean) => 
+      ipcRenderer.invoke('toggle-instruction', id, enabled),
+    deleteInstruction: (id: string) => 
+      ipcRenderer.invoke('delete-instruction', id),
+    testInstructionsServer: () => 
+      ipcRenderer.invoke('test-instructions-server')
   }
 ); 

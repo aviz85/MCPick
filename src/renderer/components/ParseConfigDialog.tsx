@@ -14,6 +14,38 @@ const ParseConfigDialog: React.FC<ParseConfigDialogProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Function to recursively find server configurations
+  const findServers = (obj: any, parentKey = ''): Record<string, any> => {
+    const foundServers: Record<string, any> = {};
+    
+    // Skip non-objects
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) {
+      return foundServers;
+    }
+    
+    // Check if this is an mcpServers object
+    if (obj.mcpServers && typeof obj.mcpServers === 'object' && !Array.isArray(obj.mcpServers)) {
+      // Found mcpServers, merge its contents
+      Object.assign(foundServers, findServers(obj.mcpServers));
+    }
+    
+    // Check if this object has a command property (is a server)
+    if (obj.command && typeof obj.command === 'string') {
+      const serverName = parentKey || 'unnamed-server';
+      foundServers[serverName] = obj;
+    }
+    
+    // Always scan all properties recursively
+    for (const [key, value] of Object.entries(obj)) {
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        const serversInValue = findServers(value, key);
+        Object.assign(foundServers, serversInValue);
+      }
+    }
+    
+    return foundServers;
+  };
+
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,11 +67,13 @@ const ParseConfigDialog: React.FC<ParseConfigDialogProps> = ({
       
       setIsSubmitting(true);
       
-      // For each server, validate structure
+      // Find servers recursively in the JSON
+      const foundServers = findServers(parsed);
       const validServers: Record<string, Server> = {};
       let hasErrors = false;
       
-      Object.entries(parsed).forEach(([name, config]) => {
+      // For each found server, validate structure
+      Object.entries(foundServers).forEach(([name, config]) => {
         if (typeof config !== 'object' || config === null) {
           setError(`Server "${name}" configuration must be an object`);
           hasErrors = true;
@@ -68,7 +102,8 @@ const ParseConfigDialog: React.FC<ParseConfigDialogProps> = ({
           command: server.command,
           args: server.args,
           enabled: server.enabled,
-          ...(server.env && typeof server.env === 'object' ? { env: server.env } : {})
+          ...(server.env && typeof server.env === 'object' ? { env: server.env } : {}),
+          ...(server.description ? { description: server.description } : {})
         };
       });
       
@@ -93,6 +128,7 @@ const ParseConfigDialog: React.FC<ParseConfigDialogProps> = ({
       }
     } catch (err) {
       setError(`Invalid JSON: ${(err as Error).message}`);
+      setIsSubmitting(false);
     }
   };
 
@@ -117,6 +153,18 @@ const ParseConfigDialog: React.FC<ParseConfigDialogProps> = ({
             fontFamily: 'monospace'
           }}
           placeholder={`{
+  "mcpServers": {
+    "server-name": {
+      "command": "python",
+      "args": ["path/to/script.py"],
+      "description": "Example server"
+    }
+  }
+}
+
+// OR direct format:
+
+{
   "memory": {
     "command": "npx",
     "args": ["-y", "@modelcontextprotocol/server-memory"],
@@ -132,6 +180,9 @@ const ParseConfigDialog: React.FC<ParseConfigDialogProps> = ({
   }
 }`}
         />
+        <small style={{ color: '#666', display: 'block', marginTop: '5px' }}>
+          JSON can be in any format as long as it contains objects with a "command" property - these will be detected as servers
+        </small>
         {error && (
           <small style={{ color: 'red', display: 'block', marginTop: '5px' }}>
             {error}

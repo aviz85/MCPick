@@ -20,6 +20,17 @@ export interface ServerSet {
 // Server sets record type
 export type ServerSetsRecord = Record<string, ServerSet>;
 
+// Instruction for MCPick prompt tool
+export interface Instruction {
+  name: string;
+  description: string;
+  content: string;
+  enabled: boolean;
+}
+
+// Instructions record type
+export type InstructionsRecord = Record<string, Instruction>;
+
 // App status from main process
 export interface AppStatus {
   configPath?: string;

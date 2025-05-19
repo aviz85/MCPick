@@ -6,6 +6,7 @@ interface ConfigContextValue {
   configPath: string | undefined;
   configExists: boolean;
   browseConfigFile: () => Promise<void>;
+  openConfigLocation: () => Promise<void>;
   reload: () => Promise<void>;
 }
 
@@ -54,12 +55,21 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     }
   };
 
+  const openConfigLocation = async () => {
+    try {
+      await api.openConfigLocation();
+    } catch (error) {
+      console.error('Error opening config location:', error);
+    }
+  };
+
   return (
     <ConfigContext.Provider
       value={{
         configPath,
         configExists,
         browseConfigFile,
+        openConfigLocation,
         reload: loadConfig,
       }}
     >

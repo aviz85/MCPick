@@ -10,17 +10,20 @@ import {
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 
 interface ConfigPathSelectorProps {
   configPath: string;
   configExists: boolean;
   onBrowse: () => void;
+  onOpenLocation?: () => void;
 }
 
 const ConfigPathSelector: React.FC<ConfigPathSelectorProps> = ({
   configPath,
   configExists,
-  onBrowse
+  onBrowse,
+  onOpenLocation
 }) => {
   return (
     <Box>
@@ -43,9 +46,21 @@ const ConfigPathSelector: React.FC<ConfigPathSelectorProps> = ({
             variant="contained" 
             startIcon={<FolderOpenIcon />}
             onClick={onBrowse}
+            sx={{ mr: 1 }}
           >
             Browse
           </Button>
+          {onOpenLocation && (
+            <Button 
+              variant="contained" 
+              color="success"
+              startIcon={<OpenInNewIcon />}
+              onClick={onOpenLocation}
+              disabled={!configPath}
+            >
+              Open Location
+            </Button>
+          )}
         </Box>
         
         <Box>

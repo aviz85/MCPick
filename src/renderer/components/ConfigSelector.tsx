@@ -2,7 +2,7 @@ import React from 'react';
 import { useConfig } from '../context/ConfigContext';
 
 const ConfigSelector: React.FC = () => {
-  const { configPath, configExists, browseConfigFile } = useConfig();
+  const { configPath, configExists, browseConfigFile, openConfigLocation } = useConfig();
 
   return (
     <div style={{
@@ -42,6 +42,22 @@ const ConfigSelector: React.FC = () => {
           }}
         >
           Browse...
+        </button>
+        
+        <button
+          onClick={openConfigLocation}
+          style={{
+            padding: '8px 16px',
+            background: '#4caf50',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            opacity: configPath ? 1 : 0.5
+          }}
+          disabled={!configPath}
+        >
+          Open Location
         </button>
       </div>
     </div>
