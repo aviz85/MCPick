@@ -682,11 +682,28 @@ ipcMain.handle('open-config-location', async () => {
 // Restart Claude application
 ipcMain.handle('restart-claude', async () => {
   const { exec } = require('child_process');
+  const platform = os.platform();
   
   try {
     // First try to kill Claude if it's running
     await new Promise<void>((resolve) => {
-      exec('pkill -f "/Applications/Claude.app/Contents/MacOS/Claude"', () => {
+      let killCommand;
+      
+      if (platform === 'win32') {
+        // Windows - use taskkill to terminate Claude processes
+        // First try to kill by process name, then by window title as fallback
+        killCommand = 'taskkill /F /IM "Claude.exe" /T 2>nul || taskkill /F /FI "WINDOWTITLE eq Claude*" /T 2>nul';
+      } else if (platform === 'darwin') {
+        // macOS - use pkill to terminate Claude processes
+        killCommand = 'pkill -f "/Applications/Claude.app/Contents/MacOS/Claude"';
+      } else {
+        // Unsupported platform
+        console.warn('Unsupported platform for Claude restart');
+        resolve();
+        return;
+      }
+      
+      exec(killCommand, () => {
         // We resolve regardless of success or failure
         resolve();
       });
@@ -694,9 +711,32 @@ ipcMain.handle('restart-claude', async () => {
     
     // Then start Claude
     await new Promise<void>((resolve, reject) => {
-      exec('open -a Claude', (err: Error | null) => {
+      let startCommand;
+      
+      if (platform === 'win32') {
+        // Windows - Try multiple potential locations
+        // First try regular start, then try common installation locations
+        const claudePaths = [
+          'Claude.exe',
+          '%LOCALAPPDATA%\\Claude\\Claude.exe',
+          '%PROGRAMFILES%\\Claude\\Claude.exe',
+          '%PROGRAMFILES(X86)%\\Claude\\Claude.exe'
+        ];
+        
+        // Create a command that tries each location in sequence
+        startCommand = claudePaths.map(path => `start "" "${path}" 2>nul`).join(' || ');
+      } else if (platform === 'darwin') {
+        // macOS - use open command
+        startCommand = 'open -a Claude';
+      } else {
+        // Unsupported platform
+        reject(new Error('Unsupported platform for Claude restart'));
+        return;
+      }
+      
+      exec(startCommand, (err: Error | null) => {
         if (err) {
-          console.error('Failed to start Claude:', err);
+          console.error(`Failed to start Claude on ${platform}:`, err);
           reject(err);
         } else {
           resolve();
@@ -709,6 +749,33 @@ ipcMain.handle('restart-claude', async () => {
     console.error('Error restarting Claude:', error);
     return { success: false, reason: 'Failed to restart Claude' };
   }
+});
+
+// Check if Claude is installed
+ipcMain.handle('check-claude-installed', async () => {
+  const { exec } = require('child_process');
+  const platform = os.platform();
+  
+  return new Promise<{ installed: boolean }>((resolve) => {
+    let checkCommand;
+    
+    if (platform === 'win32') {
+      // Windows - Check common installation locations
+      checkCommand = 'if exist "%LOCALAPPDATA%\\Claude\\Claude.exe" (exit 0) else if exist "%PROGRAMFILES%\\Claude\\Claude.exe" (exit 0) else if exist "%PROGRAMFILES(X86)%\\Claude\\Claude.exe" (exit 0) else (exit 1)';
+    } else if (platform === 'darwin') {
+      // macOS - Check Applications folder
+      checkCommand = 'test -d "/Applications/Claude.app"';
+    } else {
+      // Unsupported platform
+      resolve({ installed: false });
+      return;
+    }
+    
+    exec(checkCommand, (error: Error | null) => {
+      // If there's no error, Claude is installed
+      resolve({ installed: !error });
+    });
+  });
 });
 
 function maskSensitiveData(value: string): string {

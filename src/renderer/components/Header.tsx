@@ -1,16 +1,38 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useConfig } from '../context/ConfigContext';
 import { api } from '../api/ipc';
 
 const Header: React.FC = () => {
   const { openConfigLocation, configPath } = useConfig();
+  const [claudeInstalled, setClaudeInstalled] = useState<boolean>(false);
+  const [isRestarting, setIsRestarting] = useState<boolean>(false);
+
+  // Check if Claude is installed
+  useEffect(() => {
+    const checkClaudeInstallation = async () => {
+      try {
+        const { installed } = await api.checkClaudeInstalled();
+        setClaudeInstalled(installed);
+      } catch (error) {
+        console.error('Error checking Claude installation:', error);
+        setClaudeInstalled(false);
+      }
+    };
+    
+    checkClaudeInstallation();
+  }, []);
 
   // Function to start/restart Claude
   const startClaude = async () => {
+    if (isRestarting) return;
+    
     try {
+      setIsRestarting(true);
       await api.restartClaude();
     } catch (error) {
       console.error('Error restarting Claude:', error);
+    } finally {
+      setIsRestarting(false);
     }
   };
 
@@ -66,30 +88,38 @@ const Header: React.FC = () => {
           </svg>
         </button>
         
-        {/* Claude restart button */}
-        <button
-          onClick={startClaude}
-          style={{
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            width: '36px',
-            height: '36px',
-            padding: '0',
-            background: '#f5f5f5',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.12)'
-          }}
-          title="Restart Claude"
-        >
-          <img 
-            src="images/claude-ai-icon.png" 
-            alt="Claude" 
-            style={{ width: '24px', height: '24px' }}
-          />
-        </button>
+        {/* Claude restart button - only show if Claude is installed */}
+        {claudeInstalled && (
+          <button
+            onClick={startClaude}
+            style={{
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              width: '36px',
+              height: '36px',
+              padding: '0',
+              background: '#f5f5f5',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: isRestarting ? 'wait' : 'pointer',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
+              opacity: isRestarting ? 0.7 : 1
+            }}
+            disabled={isRestarting}
+            title={isRestarting ? "Restarting Claude..." : "Restart Claude"}
+          >
+            <img 
+              src="images/claude-ai-icon.png" 
+              alt="Claude" 
+              style={{ 
+                width: '24px', 
+                height: '24px',
+                opacity: isRestarting ? 0.5 : 1
+              }}
+            />
+          </button>
+        )}
       </div>
     </header>
   );

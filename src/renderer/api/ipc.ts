@@ -3,6 +3,7 @@ export const api = {
   getAppStatus: () => window.api.getAppStatus(),
   openConfigLocation: () => window.api.openConfigLocation(),
   restartClaude: () => window.api.restartClaude(),
+  checkClaudeInstalled: () => window.api.checkClaudeInstalled(),
   getServers: () => window.api.getServers(),
   saveServer: (name: string, cfg: any) => window.api.saveServer(name, cfg),
   toggleServer: (name: string, enabled: boolean) => window.api.toggleServer(name, enabled),
@@ -27,6 +28,7 @@ declare global {
       getAppStatus: () => Promise<{ configPath?: string; configExists: boolean }>;
       openConfigLocation: () => Promise<{ success: boolean; reason?: string }>;
       restartClaude: () => Promise<{ success: boolean; reason?: string }>;
+      checkClaudeInstalled: () => Promise<{ installed: boolean }>;
       getServers: () => Promise<Record<string, any>>;
       saveServer: (name: string, cfg: any) => Promise<boolean>;
       toggleServer: (name: string, enabled: boolean) => Promise<boolean>;

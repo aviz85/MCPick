@@ -28,7 +28,7 @@ interface SetsProviderProps {
 }
 
 export const SetsProvider: React.FC<SetsProviderProps> = ({ children }) => {
-  const { servers } = useServers();
+  const { servers, reload: reloadServers } = useServers();
   const [sets, setSets] = useState<ServerSetsRecord>({});
   const [activeSetId, setActiveSetId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -104,6 +104,8 @@ export const SetsProvider: React.FC<SetsProviderProps> = ({ children }) => {
       const success = await api.applyServerSet(id);
       if (success) {
         setActiveSetId(id);
+        // Reload servers state to sync with changes in the config file
+        await reloadServers();
       }
       return success;
     } catch (error) {

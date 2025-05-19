@@ -1,4 +1,5 @@
-import React, { useState, ReactNode } from 'react';
+import React, { useState, ReactNode, useEffect } from 'react';
+import { useServers } from '../context/ServersContext';
 
 interface TabsProps {
   children: ReactNode[];
@@ -7,6 +8,17 @@ interface TabsProps {
 
 const Tabs: React.FC<TabsProps> = ({ children, tabNames }) => {
   const [activeTab, setActiveTab] = useState(0);
+  const { reload: reloadServers } = useServers();
+
+  // When switching to Servers tab (index 0), reload servers state from the config file
+  const handleTabChange = (newTabIndex: number) => {
+    setActiveTab(newTabIndex);
+    
+    // If switching to Servers tab, reload the servers state
+    if (newTabIndex === 0) {
+      reloadServers();
+    }
+  };
 
   return (
     <div style={{
@@ -33,7 +45,7 @@ const Tabs: React.FC<TabsProps> = ({ children, tabNames }) => {
                 color: activeTab === index ? '#1976d2' : '#666',
                 fontWeight: activeTab === index ? 'bold' : 'normal'
               }}
-              onClick={() => setActiveTab(index)}
+              onClick={() => handleTabChange(index)}
             >
               {name}
               {activeTab === index && (

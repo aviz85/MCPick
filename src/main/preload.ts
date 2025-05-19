@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld(
     browseConfigFile: () => ipcRenderer.invoke('browse-config-file'),
     openConfigLocation: () => ipcRenderer.invoke('open-config-location'),
     restartClaude: () => ipcRenderer.invoke('restart-claude'),
+    checkClaudeInstalled: () => ipcRenderer.invoke('check-claude-installed'),
     
     // Server Management
     getServers: () => ipcRenderer.invoke('get-servers'),
